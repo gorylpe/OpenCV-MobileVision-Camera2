@@ -1,33 +1,24 @@
 package com.example.piotr.camera2;
 
-import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
-import android.graphics.SurfaceTexture;
 import android.hardware.camera2.*;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.ImageReader;
-import android.net.wifi.aware.Characteristics;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
-import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class CameraController {
+public class CameraManager {
 
-    private static final String TAG = "CameraController";
+    private static final String TAG = "CameraManager";
 
-    private Context context;
-
-    private CameraManager manager;
+    private android.hardware.camera2.CameraManager manager;
     private String cameraId;
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSession;
@@ -37,11 +28,9 @@ public class CameraController {
     private HandlerThread cameraBackgroundThread;
 
     private Surface targetSurface;
-    private Size outputSize;
 
-    public CameraController(Context context) {
-        this.context = context;
-        manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+    public CameraManager(Context context) {
+        manager = (android.hardware.camera2.CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
     }
 
     public void setCameraId(int i) throws ArrayIndexOutOfBoundsException {
@@ -74,14 +63,6 @@ public class CameraController {
         return map.getOutputSizes(ImageReader.class);
     }
 
-    public void setOutputSize(int i) throws CameraAccessException, ArrayIndexOutOfBoundsException {
-        outputSize = getOutputSizes()[i];
-    }
-
-    public Size getOutputSize() {
-        return outputSize;
-    }
-
     public void setTargetSurface(Surface targetSurface) {
         this.targetSurface = targetSurface;
     }
@@ -94,9 +75,6 @@ public class CameraController {
         if(cameraId == null) {
             throw new NullPointerException("Camera id is null");
         }
-        if(outputSize == null) {
-            throw new NullPointerException("Output size is null");
-        }
         openCamera();
     }
 
@@ -104,8 +82,6 @@ public class CameraController {
         stopBackgroundThread();
         closeCamera();
     }
-
-
 
     private void closeCamera() {
         if(null != cameraDevice) {
@@ -178,9 +154,11 @@ public class CameraController {
     }
 
     private void startBackgroundThread() {
-        cameraBackgroundThread = new HandlerThread("Camera Background");
-        cameraBackgroundThread.start();
-        cameraBackgroundHandler = new Handler(cameraBackgroundThread.getLooper());
+        if(cameraBackgroundThread == null) {
+            cameraBackgroundThread = new HandlerThread("Camera Background");
+            cameraBackgroundThread.start();
+            cameraBackgroundHandler = new Handler(cameraBackgroundThread.getLooper());
+        }
     }
 
     private void stopBackgroundThread() {
