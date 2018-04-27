@@ -6,15 +6,15 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 
-public class OpenCVController {
+public class OpenCVManager {
 
-    private static final String TAG = "OpenCVController";
+    private static final String TAG = "OpenCVManager";
 
     private Context context;
     private BaseLoaderCallback loaderCallback;
     private final InitializedCallback initializedCallback;
 
-    public OpenCVController(Context context, final InitializedCallback initializedCallback) {
+    public OpenCVManager(Context context, final InitializedCallback initializedCallback) {
         this.context = context;
         this.initializedCallback = initializedCallback;
         this.loaderCallback = new BaseLoaderCallback(context) {
@@ -26,7 +26,7 @@ public class OpenCVController {
                         // Load native library after(!) OpenCV initialization
                         System.loadLibrary("opencv_java3");
 
-                        OpenCVController.this.initializedCallback.onOpenCVInitialized();
+                        OpenCVManager.this.initializedCallback.onOpenCVInitialized();
                         break;
                     default:
                         super.onManagerConnected(status);
@@ -36,7 +36,7 @@ public class OpenCVController {
         };
     }
 
-    public void initOnResume() {
+    public void init() {
         if (!OpenCVLoader.initDebug()) {
             Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this.context, loaderCallback);
