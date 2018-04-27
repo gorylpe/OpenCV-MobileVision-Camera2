@@ -39,7 +39,7 @@ public class DocumentScanningPreviewView extends SurfaceView {
 
         contoursPaint = new Paint();
         contoursPaint.setStyle(Paint.Style.FILL);
-        contoursPaint.setColor(Color.GREEN);
+        contoursPaint.setColor(Color.argb(128, 0, 128, 0));
 
         contoursPath = new Path();
     }
