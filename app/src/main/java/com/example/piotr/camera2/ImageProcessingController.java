@@ -6,6 +6,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.util.Size;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -49,6 +50,8 @@ public class ImageProcessingController implements ImageReader.OnImageAvailableLi
     public void configure(CameraManager cameraManager, Size imageSize) {
         startReaderThread();
         startOpenCVThread();
+
+        Log.i(TAG, "Configured for size " + imageSize.getWidth() + "x" + imageSize.getHeight());
 
         imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), PixelFormat.RGBA_8888, 2);
         imageReader.setOnImageAvailableListener(this, readerHandler);
