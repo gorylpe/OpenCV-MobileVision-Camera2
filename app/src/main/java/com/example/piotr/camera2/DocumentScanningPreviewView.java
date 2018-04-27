@@ -1,20 +1,27 @@
 package com.example.piotr.camera2;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Matrix;
+import android.graphics.*;
 import android.support.annotation.NonNull;
 import android.util.AttributeSet;
 import android.view.SurfaceView;
+import org.opencv.core.Point;
+
+import java.util.List;
 
 public class DocumentScanningPreviewView extends SurfaceView {
-    private Matrix matrix;
+    private Matrix bitmapToScreenMatrix;
     private Bitmap bitmap;
+
     private int lastBitmapWidth = 0;
     private int lastBitmapHeight = 0;
     private int lastCanvasWidth = 0;
     private int lastCanvasHeight = 0;
+
+    Paint contoursPaint;
+    private List<Point> contours;
+    Path contoursPath;
+
 
     public DocumentScanningPreviewView(Context context) {
         super(context);
@@ -28,11 +35,27 @@ public class DocumentScanningPreviewView extends SurfaceView {
 
     private void init() {
         setWillNotDraw(false);
-        matrix = new Matrix();
+        bitmapToScreenMatrix = new Matrix();
+
+        contoursPaint = new Paint();
+        contoursPaint.setStyle(Paint.Style.FILL);
+        contoursPaint.setColor(Color.GREEN);
+
+        contoursPath = new Path();
     }
 
     public void drawBitmap(@NonNull  Bitmap bitmap) {
         this.bitmap = bitmap;
+        postInvalidate();
+    }
+
+    public void drawContours(@NonNull  List<Point> contours) {
+        this.contours = contours;
+        postInvalidate();
+    }
+
+    public void removeContours() {
+        this.contours = null;
         postInvalidate();
     }
 
@@ -51,7 +74,25 @@ public class DocumentScanningPreviewView extends SurfaceView {
                 calculateMatrix(bitmapWidth, bitmapHeight, canvasWidth, canvasHeight);
             }
 
-            canvas.drawBitmap(bitmap, matrix, null);
+            canvas.drawBitmap(bitmap, bitmapToScreenMatrix, null);
+
+
+            if(contours != null) {
+                contoursPath.reset();
+
+                Point p = contours.get(0);
+                contoursPath.moveTo((float)p.x, (float)p.y);
+
+                for(int i = 1; i < contours.size(); ++i) {
+                    p = contours.get(i);
+                    contoursPath.lineTo((float)p.x, (float)p.y);
+                }
+                contoursPath.close();
+
+                contoursPath.transform(bitmapToScreenMatrix);
+
+                canvas.drawPath(contoursPath, contoursPaint);
+            }
         }
     }
 
@@ -70,18 +111,18 @@ public class DocumentScanningPreviewView extends SurfaceView {
     }
 
     private void calculateMatrix(final int bitmapWidth, final int bitmapHeight, final int canvasWidth, final int canvasHeight) {
-        matrix.reset();
+        bitmapToScreenMatrix.reset();
 
         final int dcenterx = (canvasWidth - bitmapWidth) / 2;
         final int dcentery = (canvasHeight - bitmapHeight) / 2;
 
         //move to center
-        matrix.postTranslate(dcenterx, dcentery);
+        bitmapToScreenMatrix.postTranslate(dcenterx, dcentery);
         //rotate 90 degrees relative to center
-        matrix.postRotate(90, canvasWidth / 2, canvasHeight / 2);
+        bitmapToScreenMatrix.postRotate(90, canvasWidth / 2, canvasHeight / 2);
 
         //scale to full screen
         final float scale = Math.max((float)canvasWidth / bitmapHeight, (float)canvasHeight / bitmapWidth);
-        matrix.postScale(scale, scale, canvasWidth / 2, canvasHeight / 2);
+        bitmapToScreenMatrix.postScale(scale, scale, canvasWidth / 2, canvasHeight / 2);
     }
 }
