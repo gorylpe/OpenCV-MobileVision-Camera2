@@ -19,6 +19,11 @@ public class CachedBitmap {
     }
 
     public void setFromMat(Mat mat) {
+        final int width = mat.cols();
+        final int height = mat.rows();
+        if(sizesDiffersFromLastOrNoBitmap(width, height)) {
+            initBitmap(width, height);
+        }
         Utils.matToBitmap(mat, bitmap);
     }
 
