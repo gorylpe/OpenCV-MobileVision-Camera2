@@ -105,11 +105,14 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
         previewView.drawBitmap(cachedBitmap.getBitmap());
 
-        imageProcessor.computeBestContours(rgba)
-                .ifPresent(contours -> lastBestContours = contours);
+        if(cameraManager.isAutoFocusLockedCorrectly()) {
+            Log.i(TAG, "AF LOCKED");
+            imageProcessor.computeBestContours(rgba)
+                    .ifPresent(contours -> lastBestContours = contours);
 
-        if(lastBestContours != null) {
-            previewView.drawContours(lastBestContours);
+            if(lastBestContours != null) {
+                previewView.drawContours(lastBestContours);
+            }
         }
     }
 

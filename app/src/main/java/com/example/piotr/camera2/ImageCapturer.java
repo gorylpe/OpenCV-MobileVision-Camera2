@@ -4,12 +4,15 @@ import android.graphics.PixelFormat;
 import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
 import java.util.Optional;
 
 public class ImageCapturer {
+
+    private static final String TAG = "ImageCapturer";
 
     public static final int format = PixelFormat.RGBA_8888;
     private ImageReader imageReader;
@@ -22,6 +25,7 @@ public class ImageCapturer {
 
         imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), format, 2);
         imageReader.setOnImageAvailableListener(listener, readerHandler);
+        Log.i(TAG, "Image capturer configured");
     }
 
     public void stop() {

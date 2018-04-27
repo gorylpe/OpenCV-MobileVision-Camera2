@@ -35,6 +35,7 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
     }
 
     public void start() {
+        Log.i(TAG, "Image processor start");
         startOpenCVThread();
         new OpenCVManager(context, this).init();
     }

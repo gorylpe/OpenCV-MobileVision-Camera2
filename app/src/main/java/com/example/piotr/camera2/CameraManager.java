@@ -13,6 +13,9 @@ import android.view.Surface;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class CameraManager {
 
@@ -22,7 +25,9 @@ public class CameraManager {
     private String cameraId;
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSession;
-    private CaptureRequest.Builder captureRequestBuilder;
+
+    private ReadWriteLock captureResultLock = new ReentrantReadWriteLock();
+    private CaptureResult captureResult;
 
     private Handler cameraBackgroundHandler;
     private HandlerThread cameraBackgroundThread;
@@ -91,14 +96,14 @@ public class CameraManager {
     }
 
     private void openCamera() throws CameraAccessException {
-        Log.e(TAG, "openCamera");
+        Log.i(TAG, "openCamera");
         try {
             manager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(@NonNull CameraDevice camera) {
                     Log.e(TAG, "onOpened");
                     cameraDevice = camera;
-                    createCameraPreview();
+                    createCaptureSession();
                 }
 
                 @Override
@@ -115,23 +120,14 @@ public class CameraManager {
         } catch(SecurityException e) {}
     }
 
-    private void createCameraPreview() {
+    private void createCaptureSession() {
         try {
-            captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-            captureRequestBuilder.addTarget(targetSurface);
-
-            cameraDevice.createCaptureSession(Collections.singletonList(targetSurface), new CameraCaptureSession.StateCallback() {
+            cameraDevice.createCaptureSession(Arrays.asList(targetSurface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
-                    // Camera already closed
-                    if(null == cameraDevice) {
-                        return;
-                    }
-
                     cameraCaptureSession = session;
-                    updatePreview();
+                    startPreview();
                 }
-
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {}
             }, null);
@@ -140,17 +136,62 @@ public class CameraManager {
         }
     }
 
-    private void updatePreview() {
-        if(null == cameraDevice) {
-            Log.e(TAG, "updatePreview error, return");
-            return;
-        }
-        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
+    private void startPreview() {
         try {
-            cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, cameraBackgroundHandler);
+            CaptureRequest captureRequest = createPreviewCameraRequest();
+            if(captureRequest != null) {
+                cameraCaptureSession.prepare(targetSurface);
+                cameraCaptureSession.setRepeatingRequest(captureRequest, captureCallback, cameraBackgroundHandler);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    private CaptureRequest createPreviewCameraRequest() {
+        try {
+            CaptureRequest.Builder captureRequestBuilder;
+
+            captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            captureRequestBuilder.addTarget(targetSurface);
+
+            return captureRequestBuilder.build();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     *  Object used to acquire last capture result
+     */
+    private final CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+
+            captureResultLock.writeLock().lock();
+            captureResult = result;
+            captureResultLock.writeLock().unlock();
+        }
+    };
+
+    public Optional<Integer> getAutoFocusState() {
+        captureResultLock.readLock().lock();
+        if(captureResult == null)
+            return Optional.empty();
+        captureResultLock.readLock().unlock();
+        return Optional.ofNullable(captureResult.get(CaptureResult.CONTROL_AF_STATE));
+    }
+
+    public boolean isAutoFocusLockedCorrectly() {
+        boolean result = false;
+        if(getAutoFocusState().isPresent()) {
+            int state = getAutoFocusState().get();
+            result = state == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED
+                    || state == CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED;
+        }
+        return result;
     }
 
     private void startBackgroundThread() {
