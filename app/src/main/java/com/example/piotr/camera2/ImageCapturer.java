@@ -30,6 +30,7 @@ public class ImageCapturer {
 
     public void stop() {
         stopReaderThread();
+        imageReader.close();
         imageReader = null;
     }
 
@@ -49,9 +50,11 @@ public class ImageCapturer {
 
     private void stopReaderThread() {
         if (readerThread != null) {
-            readerThread.quitSafely();
+            readerThread.quit();
             try {
+                Log.i(TAG, "stopping image reader thread");
                 readerThread.join();
+                Log.i(TAG, "stopped image reader thread");
                 readerThread = null;
                 readerHandler = null;
             } catch (InterruptedException e) {

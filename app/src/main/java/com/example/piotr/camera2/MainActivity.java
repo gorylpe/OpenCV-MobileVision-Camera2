@@ -14,11 +14,11 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.View;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.core.Point;
+import org.opencv.core.*;
+import org.opencv.imgproc.Imgproc;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,7 +34,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     private ImageProcessor imageProcessor;
 
     private CachedBitmap cachedBitmap;
-    private List<Point> lastBestContours;
 
     private Size cameraOutputSize;
 
@@ -73,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     @Override
     public void onImageAvailable(ImageReader reader) {
+
         final Image image = reader.acquireLatestImage();
         if (image == null)
             return;
@@ -99,21 +99,46 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     }
 
     private void handleOpenCVImage(final int width, final int height, byte[] rgbaImageBytes) {
-        Mat rgba = new Mat(height, width, CvType.CV_8UC4);
+        final Mat rgba = new Mat(height, width, CvType.CV_8UC4);
         rgba.put(0, 0, rgbaImageBytes);
         cachedBitmap.setFromMat(rgba);
 
         previewView.drawBitmap(cachedBitmap.getBitmap());
 
-        if(cameraManager.isAutoFocusLockedCorrectly()) {
-            Log.i(TAG, "AF LOCKED");
-            imageProcessor.computeBestContours(rgba)
-                    .ifPresent(contours -> lastBestContours = contours);
-
-            if(lastBestContours != null) {
-                previewView.drawContours(lastBestContours);
+        Log.i(TAG, "state:" + cameraManager.getAutoFocusState().orElse(-1));
+        imageProcessor.post(() -> {
+            if(cameraManager.isAutoFocusLockedCorrectly()) {
+                imageProcessor.computeBestContours(rgba)
+                .ifPresent(bestContours -> {
+                    MainActivity.this.onDocumentObtained(rgba, bestContours);
+                });
             }
-        }
+        });
+    }
+
+    private void onDocumentObtained(Mat rgba, List<Point> contours) {
+        cachedBitmap.setFromMat(rgba);
+        previewView.drawBitmap(cachedBitmap.getBitmap());
+        previewView.drawContours(contours);
+
+        stopImageProcessing();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.e(TAG, "onResume");
+        forceFullscreen();
+
+        startImageProcessing();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.e(TAG, "onPause");
+
+        stopImageProcessing();
     }
 
     private void startImageProcessing() {
@@ -132,32 +157,19 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     }
 
     private void stopImageProcessing() {
-        imageProcessor.stop();
+        Log.e(TAG, "Stopping image processing");
         imageCapturer.stop();
+        Log.e(TAG, "Stopped image capturer");
+        imageProcessor.stop();
+        Log.e(TAG, "Stopped image processor");
         cameraManager.stopCamera();
+        Log.e(TAG, "Stopped image processing");
     }
 
     private void changeOutputSize(Size newSize) {
         cameraOutputSize = newSize;
         stopImageProcessing();
         startImageProcessing();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Log.e(TAG, "onResume");
-        forceFullscreen();
-
-        startImageProcessing();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        Log.e(TAG, "onPause");
-
-        stopImageProcessing();
     }
 
     @Override
