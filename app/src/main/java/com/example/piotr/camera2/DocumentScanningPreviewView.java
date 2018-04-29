@@ -21,9 +21,9 @@ public class DocumentScanningPreviewView extends SurfaceView {
     private int lastCanvasWidth = 0;
     private int lastCanvasHeight = 0;
 
-    Paint contoursPaint;
+    private Paint contoursPaint;
     private List<Point> contours;
-    Path contoursPath;
+    private Path contoursPath;
 
 
     public DocumentScanningPreviewView(Context context) {
