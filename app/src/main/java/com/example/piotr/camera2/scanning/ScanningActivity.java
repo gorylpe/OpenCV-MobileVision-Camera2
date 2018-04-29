@@ -1,4 +1,4 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.scanning;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -16,7 +16,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.Size;
 import android.view.View;
-import com.example.piotr.camera2.scanning.*;
+import com.example.piotr.camera2.R;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.core.*;
 
@@ -47,7 +47,7 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_scanning);
 
         requestCameraPermissions();
 
