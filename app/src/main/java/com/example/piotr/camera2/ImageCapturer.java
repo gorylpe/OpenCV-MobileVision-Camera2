@@ -1,37 +1,43 @@
 package com.example.piotr.camera2;
 
-import android.graphics.PixelFormat;
 import android.media.ImageReader;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
-import java.util.Optional;
-
 public class ImageCapturer {
 
     private static final String TAG = "ImageCapturer";
+    public final int IMAGE_FORMAT;
 
-    public static final int format = PixelFormat.RGBA_8888;
     private ImageReader imageReader;
 
-    private Handler readerHandler;
-    private HandlerThread readerThread;
+    private BackgroundThread bgThread;
 
-    public void configure(ImageReader.OnImageAvailableListener listener, Size imageSize) {
-        startReaderThread();
+    public ImageCapturer(final int format) {
+        IMAGE_FORMAT = format;
 
-        imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), format, 2);
-        imageReader.setOnImageAvailableListener(listener, readerHandler);
+        bgThread = new BackgroundThread(TAG);
+    }
+
+    public void start(ImageReader.OnImageAvailableListener listener, Size imageSize) {
+        bgThread.start();
+
+        imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), IMAGE_FORMAT, 2);
+        imageReader.setOnImageAvailableListener(listener, bgThread.getHandler());
         Log.i(TAG, "Image capturer configured");
     }
 
     public void stop() {
-        stopReaderThread();
-        imageReader.close();
-        imageReader = null;
+        try {
+            bgThread.stop();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        if(imageReader != null) {
+            imageReader.close();
+            imageReader = null;
+        }
     }
 
     public Surface getSurface() {
@@ -39,27 +45,6 @@ public class ImageCapturer {
             return imageReader.getSurface();
         else{
             throw new NullPointerException("You didn't configured ImageCapturer!");
-        }
-    }
-
-    private void startReaderThread() {
-        readerThread = new HandlerThread("Image processing");
-        readerThread.start();
-        readerHandler = new Handler(readerThread.getLooper());
-    }
-
-    private void stopReaderThread() {
-        if (readerThread != null) {
-            readerThread.quit();
-            try {
-                Log.i(TAG, "stopping image reader thread");
-                readerThread.join();
-                Log.i(TAG, "stopped image reader thread");
-                readerThread = null;
-                readerHandler = null;
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
         }
     }
 }

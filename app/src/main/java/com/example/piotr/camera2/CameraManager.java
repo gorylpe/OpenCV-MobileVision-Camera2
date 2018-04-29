@@ -11,7 +11,6 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -23,31 +22,25 @@ public class CameraManager {
 
     private android.hardware.camera2.CameraManager manager;
     private String cameraId;
+    private CameraCharacteristics characteristics;
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraCaptureSession;
 
     private ReadWriteLock captureResultLock = new ReentrantReadWriteLock();
     private CaptureResult captureResult;
 
-    private Handler cameraBackgroundHandler;
-    private HandlerThread cameraBackgroundThread;
+    private BackgroundThread bgThread;
 
     private Surface targetSurface;
 
     public CameraManager(Context context) {
         manager = (android.hardware.camera2.CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-    }
-
-    public void setCameraId(int i) throws ArrayIndexOutOfBoundsException {
-        this.cameraId = getCameraIds()[i];
+        bgThread = new BackgroundThread(TAG);
     }
 
     public void setCameraId(String cameraId) throws CameraAccessException {
-        boolean contains = Arrays.asList(getCameraIds()).contains(cameraId);
-        if(!contains) {
-            throw new CameraAccessException(CameraAccessException.CAMERA_DISCONNECTED);
-        }
         this.cameraId = cameraId;
+        this.characteristics = manager.getCameraCharacteristics(cameraId);
     }
 
     public String[] getCameraIds() {
@@ -59,8 +52,7 @@ public class CameraManager {
         return new String[0];
     }
 
-    public Size[] getOutputSizes() throws CameraAccessException {
-        CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+    public Size[] getOutputSizes() {
         StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         if(map == null) {
             throw new NullPointerException("StreamConfigurationMap is null");
@@ -73,7 +65,7 @@ public class CameraManager {
     }
 
     public void startCamera() throws CameraAccessException, NullPointerException {
-        startBackgroundThread();
+        bgThread.start();
         if(targetSurface == null) {
             throw new NullPointerException("Target surface is null");
         }
@@ -84,7 +76,11 @@ public class CameraManager {
     }
 
     public void stopCamera() {
-        stopBackgroundThread();
+        try {
+            bgThread.stop();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         closeCamera();
     }
 
@@ -122,7 +118,7 @@ public class CameraManager {
 
     private void createCaptureSession() {
         try {
-            cameraDevice.createCaptureSession(Arrays.asList(targetSurface), new CameraCaptureSession.StateCallback() {
+            cameraDevice.createCaptureSession(Collections.singletonList(targetSurface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
                     cameraCaptureSession = session;
@@ -141,7 +137,7 @@ public class CameraManager {
             CaptureRequest captureRequest = createPreviewCameraRequest();
             if(captureRequest != null) {
                 cameraCaptureSession.prepare(targetSurface);
-                cameraCaptureSession.setRepeatingRequest(captureRequest, captureCallback, cameraBackgroundHandler);
+                cameraCaptureSession.setRepeatingRequest(captureRequest, captureCallback, bgThread.getHandler());
             }
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -192,26 +188,5 @@ public class CameraManager {
                     || state == CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED;
         }
         return result;
-    }
-
-    private void startBackgroundThread() {
-        if(cameraBackgroundThread == null) {
-            cameraBackgroundThread = new HandlerThread("Camera Background");
-            cameraBackgroundThread.start();
-            cameraBackgroundHandler = new Handler(cameraBackgroundThread.getLooper());
-        }
-    }
-
-    private void stopBackgroundThread() {
-        if(cameraBackgroundThread != null) {
-            cameraBackgroundThread.quitSafely();
-            try {
-                cameraBackgroundThread.join();
-                cameraBackgroundThread = null;
-                cameraBackgroundHandler = null;
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
     }
 }
