@@ -15,10 +15,8 @@ import android.util.Size;
 import android.view.Surface;
 import android.view.View;
 import org.opencv.core.*;
-import org.opencv.imgproc.Imgproc;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -80,46 +78,54 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         int width = image.getWidth();
         int height = image.getHeight();
 
-        byte[] bytesImage = ImageDecoder.getRGBA_8888(image);
+        byte[] bytesImage = ImageConverter.getRGBA_8888(image);
 
-        if(!imageProcessor.isOpenCVInitialized()) {
-            handleVanillaImage(width, height, bytesImage);
-        } else {
-            handleOpenCVImage(width, height, bytesImage);
+        drawPreview(width, height, bytesImage);
+        if(imageProcessor.isOpenCVInitialized()) {
+            scan(width, height, bytesImage);
         }
 
         image.close();
     }
 
-    private void handleVanillaImage(final int width, final int height, byte[] rgbaImageBytes) {
+    private void drawPreview(final int width, final int height, byte[] rgbaImageBytes) {
         ByteBuffer buffer = ByteBuffer.wrap(rgbaImageBytes);
         cachedBitmap.setFromByteBuffer(width, height, buffer);
 
         previewView.drawBitmap(cachedBitmap.getBitmap());
     }
 
-    private void handleOpenCVImage(final int width, final int height, byte[] rgbaImageBytes) {
-        final Mat rgba = new Mat(height, width, CvType.CV_8UC4);
-        rgba.put(0, 0, rgbaImageBytes);
-        cachedBitmap.setFromMat(rgba);
+    private void scan(final int width, final int height, byte[] rgbaImageBytes) {
+        Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
 
-        previewView.drawBitmap(cachedBitmap.getBitmap());
-
-        Log.i(TAG, "state:" + cameraManager.getAutoFocusState().orElse(-1));
+        if(!cameraManager.getAutoFocusState().isPresent()) {
+            Log.i(TAG, "autofocus error");
+        }
         imageProcessor.post(() -> {
             if(cameraManager.isAutoFocusLockedCorrectly()) {
-                imageProcessor.computeBestContours(rgba)
+                imageProcessor.computeBestContours(rgba, 5, 1.0/18)
                 .ifPresent(bestContours -> {
-                    MainActivity.this.onDocumentObtained(rgba, bestContours);
+                    MainActivity.this.onContoursObtained(rgba, bestContours);
                 });
             }
         });
     }
 
-    private void onDocumentObtained(Mat rgba, List<Point> contours) {
+    private void onContoursObtained(Mat rgba, MatOfPoint contours) {
+        MatOfPoint2f approx = ImageProcessor.approxPolyDP(contours);
+        List<Point> approxList = approx.toList();
+        approx.release();
+
+        //Quad
+        if(approxList.size() == 4) {
+            onQuadrilateralObtained(rgba, approxList);
+        }
+    }
+
+    private void onQuadrilateralObtained(Mat rgba, List<Point> quad) {
         cachedBitmap.setFromMat(rgba);
         previewView.drawBitmap(cachedBitmap.getBitmap());
-        previewView.drawContours(contours);
+        previewView.drawContours(quad);
 
         stopImageProcessing();
     }

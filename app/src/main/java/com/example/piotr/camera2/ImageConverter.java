@@ -1,10 +1,12 @@
 package com.example.piotr.camera2;
 
 import android.media.Image;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
 
 import java.nio.ByteBuffer;
 
-public class ImageDecoder {
+public class ImageConverter {
 
     public static byte[] getRGBA_8888(Image image) {
         ByteBuffer buffer;
@@ -36,5 +38,11 @@ public class ImageDecoder {
         }
 
         return data;
+    }
+
+    public static Mat RGBA_8888toMat(final int width, final int height, final byte[] bytes) {
+        final Mat rgba = new Mat(height, width, CvType.CV_8UC4);
+        rgba.put(0, 0, bytes);
+        return rgba;
     }
 }

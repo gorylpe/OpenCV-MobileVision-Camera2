@@ -1,22 +1,15 @@
 package com.example.piotr.camera2;
 
 import android.content.Context;
-import android.graphics.PixelFormat;
-import android.media.Image;
-import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
-import android.util.Size;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ImageProcessor implements OpenCVManager.InitializedCallback{
 
@@ -28,6 +21,11 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
     private HandlerThread openCVThread;
 
     private boolean isOpenCVInitialized = false;
+
+    private final static double approxPolyDPEpsConst = 0.02;
+
+    //resized width for contours finding
+    private final static int fixedWidth = 500;
 
     //for threshold calculations
     private static Mat otsu;
@@ -53,33 +51,48 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
 
     public boolean isOpenCVInitialized() { return isOpenCVInitialized; }
 
-    public Optional<List<Point>> computeBestContours(Mat rgba){
+    public Optional<MatOfPoint> computeBestContours(Mat rgba, final int blurSize, final double sizeThreshold){
+        Mat resized = new Mat();
 
-        Mat v = ImageProcessor.gray(rgba);
-        Imgproc.adaptiveThreshold(v, v, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C, Imgproc.THRESH_BINARY, 115, 4);
-        Imgproc.medianBlur(v, v, 15);
-        Imgproc.erode(v, v, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new org.opencv.core.Size(11, 11)));
-        canny(v, v);
+        final int oldWidth = rgba.cols();
+        final int oldHeight = rgba.rows();
+
+        final double ratio = oldWidth / fixedWidth;
+        final int width = Double.valueOf(oldWidth / ratio).intValue();
+        final int height = Double.valueOf(oldHeight / ratio).intValue();
+
+        final int imageArea = width * height;
+        final int thresholdMinArea = (int)(imageArea * sizeThreshold);
+        final Point center = new Point(width / 2, height / 2);
+
+        ImageProcessor.resize(rgba, resized, width, height);
+
+        Mat v = new Mat();
+        ImageProcessor.gray(resized, v);
+        Imgproc.GaussianBlur(v, v, new org.opencv.core.Size(blurSize, blurSize), 0);
+        ImageProcessor.canny(v, v);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
         Imgproc.findContours(v, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
-        final int imageArea = rgba.rows() * rgba.cols();
-        final int thresholdMinArea = imageArea / 18;
+        resized.release();
+        v.release();
+        hierarchy.release();
 
-        return chooseBestContours(contours, thresholdMinArea);
+        Optional<MatOfPoint> bestContours = chooseBestContoursWithPointInside(contours, thresholdMinArea, center);
+        bestContours.ifPresent(c -> ImageProcessor.multiplyPointsByScalar(c, ratio));
+        return bestContours;
     }
 
-    public static Optional<List<Point>> chooseBestContours(List<MatOfPoint> contours, final int thresholdMinArea) {
-        List<Point> bestContours = null;
+    public static Optional<MatOfPoint> chooseBestContoursWithPointInside(List<MatOfPoint> contours, final int thresholdMinArea, Point pointInside) {
+        MatOfPoint bestContours = null;
 
         if(contours.size() > 0) {
             int index = 0;
             double maxArea = 0;
 
             for (int contourIdx = 0; contourIdx < contours.size(); contourIdx++) {
-
                 double tempArea = Imgproc.contourArea(contours.get(contourIdx));
                 if(tempArea > maxArea) {
                     maxArea = tempArea;
@@ -87,14 +100,28 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
                 }
             }
 
-            Log.i(TAG, "s " + maxArea);
-
-            if(maxArea > thresholdMinArea) {
-                bestContours = contours.get(index).toList();
+            MatOfPoint2f contourToTest = new MatOfPoint2f();
+            contours.get(index).convertTo(contourToTest, CvType.CV_32F);
+            final double hasPoint = Imgproc.pointPolygonTest(contourToTest, pointInside, false);
+            if(hasPoint >= 0.0 && maxArea > thresholdMinArea) {
+                bestContours = contours.get(index);
             }
         }
 
         return Optional.ofNullable(bestContours);
+    }
+
+    public static void multiplyPointsByScalar(MatOfPoint points, final double scalar) {
+        Core.multiply(points, Scalar.all(scalar), points);
+    }
+
+    public static MatOfPoint2f approxPolyDP(MatOfPoint contours) {
+        MatOfPoint2f c2f = new MatOfPoint2f(contours.toArray());
+        double peri = Imgproc.arcLength(c2f, true);
+        MatOfPoint2f approx = new MatOfPoint2f();
+        Imgproc.approxPolyDP(c2f, approx, approxPolyDPEpsConst * peri, true);
+        c2f.release();
+        return approx;
     }
 
     private void startOpenCVThread() {
@@ -121,10 +148,13 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
         openCVHandler.post(r);
     }
 
-    public static Mat gray(Mat rgba) {
-        Mat gray = new Mat();
-        Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY, 4);
-        return gray;
+    public static void resize(Mat src, Mat dst, final int newWidth, final int newHeight) {
+        Size newSize = new Size(newWidth, newHeight);
+        Imgproc.resize(src, dst, newSize);
+    }
+
+    public static void gray(Mat src, Mat dst) {
+        Imgproc.cvtColor(src, dst, Imgproc.COLOR_RGBA2GRAY, 4);
     }
 
     public static double otsuThreshold(Mat singleChannel) {
@@ -137,19 +167,6 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
         double highThreshold = otsuThreshold(src);
         double lowThreshold = highThreshold / 3;
         Imgproc.Canny(src, dst, lowThreshold, highThreshold);
-    }
-
-    public static List<Mat> getHSVChannels(Mat im) {
-        List<Mat> hsv = new ArrayList<>(3);
-        Core.split(im, hsv);
-        return hsv;
-    }
-
-    public static Mat rgbaToHsv(Mat rgba) {
-        Mat im = new Mat();
-        Imgproc.cvtColor(rgba, im, Imgproc.COLOR_RGBA2RGB);
-        Imgproc.cvtColor(im, im, Imgproc.COLOR_RGB2HSV);
-        return im;
     }
 
     public static Mat withCanny(Mat rgba) {
