@@ -3,34 +3,41 @@ package com.example.piotr.camera2;
 import android.Manifest;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.AsyncTask;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Pair;
 import android.util.Size;
-import android.view.Surface;
 import android.view.View;
+import org.opencv.android.OpenCVLoader;
 import org.opencv.core.*;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 public class MainActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 200;
-
-    private DocumentScanningPreviewView previewView;
+    private static final int IMAGE_FORMAT = PixelFormat.RGBA_8888;
 
     private CameraManager cameraManager;
     private ImageCapturer imageCapturer;
-    private ImageProcessor imageProcessor;
 
+    private QuadrilateralComputingTask quadrilateralComputingTask;
+
+    private DocumentScanningPreviewView previewView;
     private CachedBitmap cachedBitmap;
 
     private Size cameraOutputSize;
@@ -46,20 +53,27 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         previewView = findViewById(R.id.previewView);
 
         cameraManager = new CameraManager(this);
-        imageCapturer = new ImageCapturer();
-        imageProcessor = new ImageProcessor(this);
+        imageCapturer = new ImageCapturer(IMAGE_FORMAT);
 
         cachedBitmap = new CachedBitmap();
 
         try{
-            cameraManager.setCameraId(0);
+            cameraManager.setCameraId(cameraManager.getCameraIds()[0]);
             cameraOutputSize = cameraManager.getOutputSizes()[0];
             Log.i(TAG, "Avaiable sizes\n" + Arrays.deepToString(cameraManager.getOutputSizes()));
         } catch(CameraAccessException e) {
             e.printStackTrace();
         }
-        //timer();
-        Log.e(TAG, "onCreateEnd");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.e(TAG, "onResume");
+        forceFullscreen();
+
+        OpenCVInitializer.init();
+        startImageProcessing();
     }
 
     private void forceFullscreen() {
@@ -68,22 +82,32 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         decorView.setSystemUiVisibility(uiOptions);
     }
 
+    private void startImageProcessing() {
+        try{
+            if(cameraOutputSize == null)
+                return;
+
+            imageCapturer.start(this, cameraOutputSize);
+            cameraManager.setTargetSurface(imageCapturer.getSurface());
+            cameraManager.startCamera();
+        } catch(CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void onImageAvailable(ImageReader reader) {
-
         final Image image = reader.acquireLatestImage();
         if (image == null)
             return;
 
-        int width = image.getWidth();
-        int height = image.getHeight();
+        final int width = image.getWidth();
+        final int height = image.getHeight();
 
         byte[] bytesImage = ImageConverter.getRGBA_8888(image);
 
         drawPreview(width, height, bytesImage);
-        if(imageProcessor.isOpenCVInitialized()) {
-            scan(width, height, bytesImage);
-        }
+        scan(width, height, bytesImage);
 
         image.close();
     }
@@ -96,29 +120,63 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     }
 
     private void scan(final int width, final int height, byte[] rgbaImageBytes) {
-        Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
+        final Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
 
-        if(!cameraManager.getAutoFocusState().isPresent()) {
+        if (!cameraManager.getAutoFocusState().isPresent()) {
             Log.i(TAG, "autofocus error");
+            return;
         }
-        imageProcessor.post(() -> {
-            if(cameraManager.isAutoFocusLockedCorrectly()) {
-                imageProcessor.computeBestContours(rgba, 5, 1.0/18)
-                .ifPresent(bestContours -> {
-                    MainActivity.this.onContoursObtained(rgba, bestContours);
-                });
-            }
-        });
+
+        if (!cameraManager.isAutoFocusLockedCorrectly())
+            return;
+
+        checkAndExecuteQuadrilateralComputingTask(rgba);
     }
 
-    private void onContoursObtained(Mat rgba, MatOfPoint contours) {
-        MatOfPoint2f approx = ImageProcessor.approxPolyDP(contours);
-        List<Point> approxList = approx.toList();
-        approx.release();
+    private void checkAndExecuteQuadrilateralComputingTask(final Mat rgba) {
+        if (quadrilateralComputingTask == null || quadrilateralComputingTask.getStatus() != AsyncTask.Status.RUNNING){
+            quadrilateralComputingTask = new QuadrilateralComputingTask(this);
+            quadrilateralComputingTask.execute(rgba);
+        }
+    }
 
-        //Quad
-        if(approxList.size() == 4) {
-            onQuadrilateralObtained(rgba, approxList);
+    public static class QuadrilateralComputingTask extends AsyncTask<Mat, Void, Pair<Mat, List<Point>>> {
+
+        private WeakReference<MainActivity> activityReference;
+
+        public QuadrilateralComputingTask(MainActivity context) {
+            activityReference = new WeakReference<>(context);
+        }
+
+        @Override
+        protected Pair<Mat, List<Point>> doInBackground(Mat... mats) {
+            final Mat rgba = mats[0];
+            Pair<Mat, List<Point>> result = null;
+
+            Optional<MatOfPoint> bestContours = ImageProcessor.computeBestContours(rgba, 5, 1.0/18);
+            if(bestContours.isPresent()) {
+                MatOfPoint2f approx = ImageProcessor.approxPolyDP(bestContours.get());
+                List<Point> approxList = approx.toList();
+                approx.release();
+
+                //Quad
+                if(approxList.size() == 4) {
+                    result = new Pair<>(rgba, approxList);
+                }
+            }
+
+            Log.i(TAG, "executing");
+            return result;
+        }
+
+        @Override
+        protected void onPostExecute(@Nullable Pair<Mat, List<Point>> result) {
+            if(result != null) {
+                MainActivity activity = activityReference.get();
+                if (activity == null || activity.isFinishing()) return;
+
+                activity.onQuadrilateralObtained(result.first, result.second);
+            }
         }
     }
 
@@ -131,15 +189,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        Log.e(TAG, "onResume");
-        forceFullscreen();
-
-        startImageProcessing();
-    }
-
-    @Override
     protected void onPause() {
         super.onPause();
         Log.e(TAG, "onPause");
@@ -147,27 +196,10 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         stopImageProcessing();
     }
 
-    private void startImageProcessing() {
-        try{
-            if(cameraOutputSize == null)
-                return;
-
-            imageProcessor.start();
-            imageCapturer.configure(this, cameraOutputSize);
-            Surface targetSurface = imageCapturer.getSurface();
-            cameraManager.setTargetSurface(targetSurface);
-            cameraManager.startCamera();
-        } catch(CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-
     private void stopImageProcessing() {
         Log.e(TAG, "Stopping image processing");
         imageCapturer.stop();
         Log.e(TAG, "Stopped image capturer");
-        imageProcessor.stop();
-        Log.e(TAG, "Stopped image processor");
         cameraManager.stopCamera();
         Log.e(TAG, "Stopped image processing");
     }
