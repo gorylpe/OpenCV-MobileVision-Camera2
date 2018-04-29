@@ -1,4 +1,4 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.scanning;
 
 import android.content.Context;
 import android.content.res.Configuration;
@@ -10,7 +10,7 @@ import org.opencv.core.Point;
 
 import java.util.List;
 
-public class DocumentScanningPreviewView extends SurfaceView {
+public class ScanningPreviewView extends SurfaceView {
     private Matrix bitmapToScreenMatrix;
     private Bitmap bitmap;
 
@@ -26,12 +26,12 @@ public class DocumentScanningPreviewView extends SurfaceView {
     private Path contoursPath;
 
 
-    public DocumentScanningPreviewView(Context context) {
+    public ScanningPreviewView(Context context) {
         super(context);
         init();
     }
 
-    public DocumentScanningPreviewView(Context context, AttributeSet attrs) {
+    public ScanningPreviewView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }

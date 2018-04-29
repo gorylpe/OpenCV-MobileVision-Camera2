@@ -1,9 +1,5 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.scanning;
 
-import android.content.Context;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.util.Log;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
@@ -11,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class ImageProcessor{
+public class ImageContoursProcessor {
 
-    private static final String TAG = "ImageProcessor";
+    private static final String TAG = "ImageContoursProcessor";
 
     private final static double approxPolyDPEpsConst = 0.02;
 
@@ -37,10 +33,10 @@ public class ImageProcessor{
         final int thresholdMinArea = (int)(imageArea * sizeThreshold);
         final Point center = new Point(width / 2, height / 2);
 
-        ImageProcessor.resize(rgba, resized, width, height);
+        ImageContoursProcessor.resize(rgba, resized, width, height);
 
         Mat v = new Mat();
-        ImageProcessor.canny(resized, v, blurSize);
+        ImageContoursProcessor.canny(resized, v, blurSize);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
@@ -51,7 +47,7 @@ public class ImageProcessor{
         hierarchy.release();
 
         Optional<MatOfPoint> bestContours = chooseBestContoursWithPointInside(contours, thresholdMinArea, center);
-        bestContours.ifPresent(c -> ImageProcessor.multiplyPointsByScalar(c, ratio));
+        bestContours.ifPresent(c -> ImageContoursProcessor.multiplyPointsByScalar(c, ratio));
         return bestContours;
     }
 
@@ -110,7 +106,7 @@ public class ImageProcessor{
     }
 
     public static void canny(Mat rgbaSrc, Mat dst, final int blurSize) {
-        ImageProcessor.gray(rgbaSrc, dst);
+        ImageContoursProcessor.gray(rgbaSrc, dst);
         Imgproc.GaussianBlur(dst, dst, new org.opencv.core.Size(blurSize, blurSize), 0);
         double highThreshold = otsuThreshold(dst);
         double lowThreshold = highThreshold / 3;
@@ -125,11 +121,11 @@ public class ImageProcessor{
         final int width = Double.valueOf(oldWidth / ratio).intValue();
         final int height = Double.valueOf(oldHeight / ratio).intValue();
 
-        ImageProcessor.resize(rgbaSrc, dst, width, height);
+        ImageContoursProcessor.resize(rgbaSrc, dst, width, height);
 
         canny(dst, dst, blurSize);
 
-        ImageProcessor.resize(dst, dst, oldWidth, oldHeight);
+        ImageContoursProcessor.resize(dst, dst, oldWidth, oldHeight);
 
         Imgproc.cvtColor(dst, dst, Imgproc.COLOR_GRAY2RGBA);
         Core.bitwise_or(rgbaSrc, dst, dst);

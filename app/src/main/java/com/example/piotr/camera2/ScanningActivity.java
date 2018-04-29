@@ -16,6 +16,8 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.Size;
 import android.view.View;
+import com.example.piotr.camera2.scanning.*;
+import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.core.*;
 
 import java.lang.ref.WeakReference;
@@ -24,9 +26,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-public class MainActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
+public class ScanningActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
 
-    private static final String TAG = "MainActivity";
+    private static final String TAG = "ScanningActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final int IMAGE_FORMAT = PixelFormat.RGBA_8888;
 
@@ -37,7 +39,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     private final int blurSize = 5;
     private final double sizeThreshold = 1.0/18;
 
-    private DocumentScanningPreviewView previewView;
+    private ScanningPreviewView previewView;
     private CachedBitmap cachedBitmap;
 
     private Size cameraOutputSize;
@@ -125,7 +127,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         final Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
 
         final Mat rgbaWithCanny = new Mat();
-        ImageProcessor.withCanny(rgba, rgbaWithCanny, blurSize);
+        ImageContoursProcessor.withCanny(rgba, rgbaWithCanny, blurSize);
 
         cachedBitmap.setFromMat(rgbaWithCanny);
         previewView.drawBitmap(cachedBitmap.getBitmap());
@@ -150,11 +152,11 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     public static class QuadrilateralComputingTask extends AsyncTask<Mat, Void, Pair<Mat, List<Point>>> {
 
-        private WeakReference<MainActivity> activityReference;
+        private WeakReference<ScanningActivity> activityReference;
         private final int blurSize;
         private final double sizeThreshold;
 
-        public QuadrilateralComputingTask(MainActivity context, final int blurSize, final double sizeThreshold) {
+        public QuadrilateralComputingTask(ScanningActivity context, final int blurSize, final double sizeThreshold) {
             activityReference = new WeakReference<>(context);
             this.blurSize = blurSize;
             this.sizeThreshold = sizeThreshold;
@@ -165,9 +167,9 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             final Mat rgba = mats[0];
             Pair<Mat, List<Point>> result = null;
 
-            Optional<MatOfPoint> bestContours = ImageProcessor.computeBestContours(rgba, blurSize, sizeThreshold);
+            Optional<MatOfPoint> bestContours = ImageContoursProcessor.computeBestContours(rgba, blurSize, sizeThreshold);
             if(bestContours.isPresent()) {
-                MatOfPoint2f approx = ImageProcessor.approxPolyDP(bestContours.get());
+                MatOfPoint2f approx = ImageContoursProcessor.approxPolyDP(bestContours.get());
                 List<Point> approxList = approx.toList();
                 approx.release();
 
@@ -183,7 +185,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         @Override
         protected void onPostExecute(@Nullable Pair<Mat, List<Point>> result) {
             if(result != null) {
-                MainActivity activity = activityReference.get();
+                ScanningActivity activity = activityReference.get();
                 if (activity == null || activity.isFinishing()) return;
 
                 activity.onQuadrilateralObtained(result.first, result.second);

@@ -1,4 +1,4 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.utils;
 
 import android.support.annotation.Nullable;
 import android.util.Log;

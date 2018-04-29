@@ -1,9 +1,10 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.scanning;
 
 import android.media.ImageReader;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
+import com.example.piotr.camera2.utils.BackgroundThread;
 
 public class ImageCapturer {
 

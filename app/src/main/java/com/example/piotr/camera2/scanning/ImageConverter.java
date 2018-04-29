@@ -1,4 +1,4 @@
-package com.example.piotr.camera2;
+package com.example.piotr.camera2.scanning;
 
 import android.media.Image;
 import org.opencv.core.CvType;
