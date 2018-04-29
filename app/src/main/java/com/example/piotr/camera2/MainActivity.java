@@ -46,7 +46,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         requestCameraPermissions();
 
@@ -198,9 +197,10 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     private void stopImageProcessing() {
         Log.e(TAG, "Stopping image processing");
+        cameraManager.stopCamera();
+        Log.e(TAG, "Stopped camera");
         imageCapturer.stop();
         Log.e(TAG, "Stopped image capturer");
-        cameraManager.stopCamera();
         Log.e(TAG, "Stopped image processing");
     }
 

@@ -1,6 +1,7 @@
 package com.example.piotr.camera2;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.*;
 import android.support.annotation.NonNull;
 import android.util.AttributeSet;
@@ -12,6 +13,8 @@ import java.util.List;
 public class DocumentScanningPreviewView extends SurfaceView {
     private Matrix bitmapToScreenMatrix;
     private Bitmap bitmap;
+
+    private int orientation;
 
     private int lastBitmapWidth = 0;
     private int lastBitmapHeight = 0;
@@ -42,14 +45,16 @@ public class DocumentScanningPreviewView extends SurfaceView {
         contoursPaint.setColor(Color.argb(128, 0, 128, 0));
 
         contoursPath = new Path();
+
+        orientation = getResources().getConfiguration().orientation;
     }
 
-    public void drawBitmap(@NonNull  Bitmap bitmap) {
+    public void drawBitmap(@NonNull Bitmap bitmap) {
         this.bitmap = bitmap;
         postInvalidate();
     }
 
-    public void drawContours(@NonNull  List<Point> contours) {
+    public void drawContours(@NonNull List<Point> contours) {
         this.contours = contours;
         postInvalidate();
     }
@@ -118,11 +123,17 @@ public class DocumentScanningPreviewView extends SurfaceView {
 
         //move to center
         bitmapToScreenMatrix.postTranslate(dcenterx, dcentery);
-        //rotate 90 degrees relative to center
-        bitmapToScreenMatrix.postRotate(90, canvasWidth / 2, canvasHeight / 2);
+
+        float scale;
+        if(orientation == Configuration.ORIENTATION_PORTRAIT){
+            //rotate 90 degrees relative to center
+            bitmapToScreenMatrix.postRotate(90, canvasWidth / 2, canvasHeight / 2);
+            scale = Math.max((float)canvasWidth / bitmapHeight, (float)canvasHeight / bitmapWidth);
+        } else {
+            scale = Math.max((float)canvasHeight / bitmapHeight, (float)canvasWidth / bitmapWidth);
+        }
 
         //scale to full screen
-        final float scale = Math.max((float)canvasWidth / bitmapHeight, (float)canvasHeight / bitmapWidth);
         bitmapToScreenMatrix.postScale(scale, scale, canvasWidth / 2, canvasHeight / 2);
     }
 }
