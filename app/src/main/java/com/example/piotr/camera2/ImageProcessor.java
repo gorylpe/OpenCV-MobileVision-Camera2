@@ -40,9 +40,7 @@ public class ImageProcessor{
         ImageProcessor.resize(rgba, resized, width, height);
 
         Mat v = new Mat();
-        ImageProcessor.gray(resized, v);
-        Imgproc.GaussianBlur(v, v, new org.opencv.core.Size(blurSize, blurSize), 0);
-        ImageProcessor.canny(v, v);
+        ImageProcessor.canny(resized, v, blurSize);
 
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
@@ -111,17 +109,31 @@ public class ImageProcessor{
         return Imgproc.threshold(singleChannel, otsu, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
     }
 
-    public static void canny(Mat src, Mat dst) {
-        double highThreshold = otsuThreshold(src);
+    public static void canny(Mat rgbaSrc, Mat dst, final int blurSize) {
+        ImageProcessor.gray(rgbaSrc, dst);
+        Imgproc.GaussianBlur(dst, dst, new org.opencv.core.Size(blurSize, blurSize), 0);
+        double highThreshold = otsuThreshold(dst);
         double lowThreshold = highThreshold / 3;
-        Imgproc.Canny(src, dst, lowThreshold, highThreshold);
+        Imgproc.Canny(dst, dst, lowThreshold, highThreshold);
     }
 
-    public static Mat withCanny(Mat rgba) {
-        Mat im = new Mat();
-        canny(rgba, im);
-        Imgproc.cvtColor(im, im, Imgproc.COLOR_GRAY2RGBA);
-        Core.bitwise_or(rgba, im, im);
-        return im;
+    public static Mat withCanny(Mat rgbaSrc, Mat dst, final int blurSize) {
+        final int oldWidth = rgbaSrc.cols();
+        final int oldHeight = rgbaSrc.rows();
+
+        final double ratio = oldWidth / fixedWidth;
+        final int width = Double.valueOf(oldWidth / ratio).intValue();
+        final int height = Double.valueOf(oldHeight / ratio).intValue();
+
+        ImageProcessor.resize(rgbaSrc, dst, width, height);
+
+        canny(dst, dst, blurSize);
+
+        ImageProcessor.resize(dst, dst, oldWidth, oldHeight);
+
+        Imgproc.cvtColor(dst, dst, Imgproc.COLOR_GRAY2RGBA);
+        Core.bitwise_or(rgbaSrc, dst, dst);
+
+        return dst;
     }
 }

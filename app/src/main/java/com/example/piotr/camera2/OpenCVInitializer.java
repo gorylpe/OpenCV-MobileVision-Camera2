@@ -1,15 +1,14 @@
 package com.example.piotr.camera2;
 
-import android.content.Context;
 import android.support.annotation.Nullable;
 import android.util.Log;
-import org.opencv.android.BaseLoaderCallback;
-import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 
 public class OpenCVInitializer {
 
     private static final String TAG = "OpenCVInitializer";
+
+    public static volatile boolean initialized = false;
 
     public static void init() {
         init(null);
@@ -24,6 +23,8 @@ public class OpenCVInitializer {
 
             if(initializedCallback != null)
                 initializedCallback.onOpenCVInitialized();
+
+            initialized = true;
         }
     }
 

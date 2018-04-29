@@ -1,7 +1,6 @@
 package com.example.piotr.camera2;
 
 import android.Manifest;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -17,7 +16,6 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.Size;
 import android.view.View;
-import org.opencv.android.OpenCVLoader;
 import org.opencv.core.*;
 
 import java.lang.ref.WeakReference;
@@ -36,6 +34,8 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     private ImageCapturer imageCapturer;
 
     private QuadrilateralComputingTask quadrilateralComputingTask;
+    private final int blurSize = 5;
+    private final double sizeThreshold = 1.0/18;
 
     private DocumentScanningPreviewView previewView;
     private CachedBitmap cachedBitmap;
@@ -105,8 +105,11 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
         byte[] bytesImage = ImageConverter.getRGBA_8888(image);
 
-        drawPreview(width, height, bytesImage);
-        scan(width, height, bytesImage);
+        if(OpenCVInitializer.initialized) {
+            drawPreviewAndScanOpenCV(width, height, bytesImage);
+        } else {
+            drawPreview(width, height, bytesImage);
+        }
 
         image.close();
     }
@@ -118,8 +121,14 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
         previewView.drawBitmap(cachedBitmap.getBitmap());
     }
 
-    private void scan(final int width, final int height, byte[] rgbaImageBytes) {
+    private void drawPreviewAndScanOpenCV(final int width, final int height, byte[] rgbaImageBytes) {
         final Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
+
+        final Mat rgbaWithCanny = new Mat();
+        ImageProcessor.withCanny(rgba, rgbaWithCanny, blurSize);
+
+        cachedBitmap.setFromMat(rgbaWithCanny);
+        previewView.drawBitmap(cachedBitmap.getBitmap());
 
         if (!cameraManager.getAutoFocusState().isPresent()) {
             Log.i(TAG, "autofocus error");
@@ -134,7 +143,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
 
     private void checkAndExecuteQuadrilateralComputingTask(final Mat rgba) {
         if (quadrilateralComputingTask == null || quadrilateralComputingTask.getStatus() != AsyncTask.Status.RUNNING){
-            quadrilateralComputingTask = new QuadrilateralComputingTask(this);
+            quadrilateralComputingTask = new QuadrilateralComputingTask(this, blurSize, sizeThreshold);
             quadrilateralComputingTask.execute(rgba);
         }
     }
@@ -142,9 +151,13 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
     public static class QuadrilateralComputingTask extends AsyncTask<Mat, Void, Pair<Mat, List<Point>>> {
 
         private WeakReference<MainActivity> activityReference;
+        private final int blurSize;
+        private final double sizeThreshold;
 
-        public QuadrilateralComputingTask(MainActivity context) {
+        public QuadrilateralComputingTask(MainActivity context, final int blurSize, final double sizeThreshold) {
             activityReference = new WeakReference<>(context);
+            this.blurSize = blurSize;
+            this.sizeThreshold = sizeThreshold;
         }
 
         @Override
@@ -152,7 +165,7 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
             final Mat rgba = mats[0];
             Pair<Mat, List<Point>> result = null;
 
-            Optional<MatOfPoint> bestContours = ImageProcessor.computeBestContours(rgba, 5, 1.0/18);
+            Optional<MatOfPoint> bestContours = ImageProcessor.computeBestContours(rgba, blurSize, sizeThreshold);
             if(bestContours.isPresent()) {
                 MatOfPoint2f approx = ImageProcessor.approxPolyDP(bestContours.get());
                 List<Point> approxList = approx.toList();
@@ -164,7 +177,6 @@ public class MainActivity extends AppCompatActivity implements ImageReader.OnIma
                 }
             }
 
-            Log.i(TAG, "executing");
             return result;
         }
 
