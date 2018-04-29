@@ -11,16 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class ImageProcessor implements OpenCVManager.InitializedCallback{
+public class ImageProcessor{
 
     private static final String TAG = "ImageProcessor";
-
-    private Context context;
-
-    private Handler openCVHandler;
-    private HandlerThread openCVThread;
-
-    private boolean isOpenCVInitialized = false;
 
     private final static double approxPolyDPEpsConst = 0.02;
 
@@ -30,28 +23,7 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
     //for threshold calculations
     private static Mat otsu;
 
-    public ImageProcessor(Context context) {
-        this.context = context;
-    }
-
-    public void start() {
-        Log.i(TAG, "Image processor start");
-        startOpenCVThread();
-        new OpenCVManager(context, this).init();
-    }
-
-    public void stop() {
-        stopOpenCVThread();
-    }
-
-    @Override
-    public void onOpenCVInitialized() {
-        isOpenCVInitialized = true;
-    }
-
-    public boolean isOpenCVInitialized() { return isOpenCVInitialized; }
-
-    public Optional<MatOfPoint> computeBestContours(Mat rgba, final int blurSize, final double sizeThreshold){
+    public static Optional<MatOfPoint> computeBestContours(Mat rgba, final int blurSize, final double sizeThreshold){
         Mat resized = new Mat();
 
         final int oldWidth = rgba.cols();
@@ -122,30 +94,6 @@ public class ImageProcessor implements OpenCVManager.InitializedCallback{
         Imgproc.approxPolyDP(c2f, approx, approxPolyDPEpsConst * peri, true);
         c2f.release();
         return approx;
-    }
-
-    private void startOpenCVThread() {
-        openCVThread = new HandlerThread("Open CV Thread");
-        openCVThread.start();
-        openCVHandler = new Handler(openCVThread.getLooper());
-    }
-
-    private void stopOpenCVThread() {
-        if(openCVThread != null) {
-            openCVThread.quit();
-            try {
-                openCVThread.join();
-                openCVThread = null;
-                openCVHandler = null;
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public void post(Runnable r) {
-        openCVHandler.removeCallbacksAndMessages(null);
-        openCVHandler.post(r);
     }
 
     public static void resize(Mat src, Mat dst, final int newWidth, final int newHeight) {
