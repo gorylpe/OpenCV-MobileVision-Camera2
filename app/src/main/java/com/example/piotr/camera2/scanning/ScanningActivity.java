@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+//TODO MOTION DETECTION
 public class ScanningActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
 
     private static final String TAG = "ScanningActivity";
