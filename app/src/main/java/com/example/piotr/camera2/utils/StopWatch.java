@@ -9,8 +9,13 @@ public class StopWatch {
         lastTime = System.nanoTime();
     }
 
-    public static void stop(final String TAG) {
-        long diff = System.nanoTime() - lastTime;
+    public static long stop() {
+        return System.nanoTime() - lastTime;
+    }
+
+    public static long stop(final String TAG) {
+        long diff = stop();
         Log.i("d", "Drawing time " + ((double)diff / 1000000) + " ms");
+        return diff;
     }
 }
