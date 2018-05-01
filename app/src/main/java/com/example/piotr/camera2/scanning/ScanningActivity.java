@@ -2,6 +2,7 @@ package com.example.piotr.camera2.scanning;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
@@ -21,7 +22,6 @@ import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.core.*;
 
 import java.lang.ref.WeakReference;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +41,6 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
     private final double sizeThreshold = 1.0/18;
 
     private ScanningPreviewView previewView;
-    private CachedBitmap cachedBitmap;
 
     private Size cameraOutputSize;
 
@@ -53,11 +52,11 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         requestCameraPermissions();
 
         previewView = findViewById(R.id.previewView);
+        //camera rotation fix
+        previewView.rotate90(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT);
 
         cameraManager = new CameraManager(this);
         imageCapturer = new ImageCapturer(IMAGE_FORMAT);
-
-        cachedBitmap = new CachedBitmap();
 
         try{
             cameraManager.setCameraId(cameraManager.getCameraIds()[0]);
@@ -110,28 +109,16 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
         if(OpenCVInitializer.initialized) {
             drawPreviewAndScanOpenCV(width, height, bytesImage);
-        } else {
-            drawPreview(width, height, bytesImage);
         }
 
         image.close();
     }
 
-    private void drawPreview(final int width, final int height, byte[] rgbaImageBytes) {
-        ByteBuffer buffer = ByteBuffer.wrap(rgbaImageBytes);
-        cachedBitmap.setFromByteBuffer(width, height, buffer);
-
-        previewView.drawBitmap(cachedBitmap.getBitmap());
-    }
-
     private void drawPreviewAndScanOpenCV(final int width, final int height, byte[] rgbaImageBytes) {
         final Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
 
-        final Mat rgbaWithCanny = new Mat();
-        ImageContoursProcessor.withCanny(rgba, rgbaWithCanny, blurSize);
-
-        cachedBitmap.setFromMat(rgbaWithCanny);
-        previewView.drawBitmap(cachedBitmap.getBitmap());
+        previewView.setNewImage(rgba, false);
+        previewView.redraw();
 
         if (!cameraManager.getAutoFocusState().isPresent()) {
             Log.i(TAG, "autofocus error");
@@ -142,6 +129,11 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
             return;
 
         checkAndExecuteQuadrilateralComputingTask(rgba);
+    }
+
+    private void orientationCorrection(final Mat rgba) {
+        if(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT)
+            Core.rotate(rgba, rgba, Core.ROTATE_90_CLOCKWISE);
     }
 
     private void checkAndExecuteQuadrilateralComputingTask(final Mat rgba) {
@@ -195,11 +187,8 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
     }
 
     private void onQuadrilateralObtained(Mat rgba, List<Point> quad) {
-        cachedBitmap.setFromMat(rgba);
-        previewView.drawBitmap(cachedBitmap.getBitmap());
-        previewView.drawContours(quad);
-
-        stopImageProcessing();
+        previewView.setNewImageWithContours(rgba, quad, true);
+        previewView.redraw();
     }
 
     @Override
