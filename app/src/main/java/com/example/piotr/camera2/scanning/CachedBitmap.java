@@ -5,6 +5,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 public class CachedBitmap {
     private Bitmap bitmap;
@@ -27,8 +28,8 @@ public class CachedBitmap {
         Utils.matToBitmap(mat, bitmap);
     }
 
-    public Bitmap getBitmap() {
-        return bitmap;
+    public Optional<Bitmap> getBitmap() {
+        return Optional.ofNullable(bitmap);
     }
 
     private boolean sizesDiffersFromLastOrNoBitmap(final int width, final int height) {
@@ -36,7 +37,10 @@ public class CachedBitmap {
     }
 
     private void initBitmap(int width, int height) {
-        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        if(bitmap == null)
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        else
+            bitmap.reconfigure(width, height, bitmap.getConfig());
         lastWidth = width;
         lastHeight = height;
     }
