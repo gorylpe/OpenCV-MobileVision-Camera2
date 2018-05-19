@@ -8,6 +8,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
+import com.example.piotr.camera2.utils.OpenCVHelperFuncs;
 import com.example.piotr.camera2.utils.StopWatch;
 import org.opencv.core.Mat;
 
@@ -127,10 +128,7 @@ public class ScanningPreviewView extends SurfaceView {
 
             setNewImage(rgba);
 
-            this.contours = new ArrayList<>(contours.size());
-            for (org.opencv.core.Point p : contours) {
-                this.contours.add(new PointF((float) p.x, (float) p.y));
-            }
+            this.contours = OpenCVHelperFuncs.convertListOfPoints(contours);
             updateContoursPath();
         }
     }
@@ -161,38 +159,6 @@ public class ScanningPreviewView extends SurfaceView {
             contoursPath.lineTo(p.x, p.y);
         }
         contoursPath.close();
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent e) {
-        //no bitmap drawn
-        if(bitmapToCanvasMatrix == null)
-            return true;
-        //dont edit contours when in edit mode
-        if(editMode.get()) {
-            float[] touchCoords = new float[2];
-            touchCoords[0] = e.getX();
-            touchCoords[1] = e.getY();
-
-            //translate
-            viewToBitmapMatrix.mapPoints(touchCoords);
-
-            PointF touchPoint = new PointF(touchCoords[0], touchCoords[1]);
-
-
-            switch (e.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    for(PointF contoursPoint : contours) {
-                        //euclidean distance between points, touch is near contour point
-                        if(Math.hypot(contoursPoint.x - touchPoint.x, contoursPoint.y - touchPoint.y) <= contourPointRadius) {
-                            Log.i("xd", "Touched point x:" + contoursPoint.x + " y:" + contoursPoint.y);
-                        }
-                    }
-                    break;
-            }
-        }
-
-        return true;
     }
 
     @Override

@@ -1,48 +1,58 @@
 package com.example.piotr.camera2.scanning;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.graphics.PixelFormat;
+import android.graphics.PointF;
 import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.util.Pair;
 import android.util.Size;
 import android.view.View;
 import com.example.piotr.camera2.R;
+import com.example.piotr.camera2.editing.EditingActivity;
+import com.example.piotr.camera2.utils.GlobalBitmap;
+import com.example.piotr.camera2.utils.OpenCVHelperFuncs;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.core.*;
 
-import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 //TODO MOTION DETECTION
-public class ScanningActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener{
+public class ScanningActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener, QuadrilateralCallback{
+
+    public static final String EXTRA_CONTOURS = "com.example.piotr.camera2.scanning.CONTOURS";
 
     private static final String TAG = "ScanningActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private static final int IMAGE_FORMAT = PixelFormat.RGBA_8888;
 
     private CameraManager cameraManager;
+    private Size cameraOutputSize;
+
     private ImageCapturer imageCapturer;
 
     private QuadrilateralComputingTask quadrilateralComputingTask;
     private final int blurSize = 5;
     private final double sizeThreshold = 1.0/18;
 
+    private final CachedBitmap finalBitmap = new CachedBitmap();
+
     private ScanningPreviewView previewView;
 
-    private Size cameraOutputSize;
+    private boolean rotate90fix;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,7 +63,8 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
         previewView = findViewById(R.id.previewView);
         //camera rotation fix
-        previewView.rotate90(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT);
+        rotate90fix = getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+        previewView.rotate90(rotate90fix);
 
         cameraManager = new CameraManager(this);
         imageCapturer = new ImageCapturer(IMAGE_FORMAT);
@@ -131,11 +142,6 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         checkAndExecuteQuadrilateralComputingTask(rgba);
     }
 
-    private void orientationCorrection(final Mat rgba) {
-        if(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT)
-            Core.rotate(rgba, rgba, Core.ROTATE_90_CLOCKWISE);
-    }
-
     private void checkAndExecuteQuadrilateralComputingTask(final Mat rgba) {
         if (quadrilateralComputingTask == null || quadrilateralComputingTask.getStatus() != AsyncTask.Status.RUNNING){
             quadrilateralComputingTask = new QuadrilateralComputingTask(this, blurSize, sizeThreshold);
@@ -143,52 +149,45 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         }
     }
 
-    public static class QuadrilateralComputingTask extends AsyncTask<Mat, Void, Pair<Mat, List<Point>>> {
+    public void onObtained(Mat rgba, List<Point> quad) {
+        orientationCorrectionRGBA(rgba);
+        finalBitmap.setFromMat(rgba);
+        if(!finalBitmap.getBitmap().isPresent())
+            return;
 
-        private WeakReference<ScanningActivity> activityReference;
-        private final int blurSize;
-        private final double sizeThreshold;
+        ArrayList<PointF> quadF = OpenCVHelperFuncs.convertListOfPoints(quad);
+        orientationCorrectionQuad(quadF, finalBitmap.getBitmap().get().getWidth());
 
-        public QuadrilateralComputingTask(ScanningActivity context, final int blurSize, final double sizeThreshold) {
-            activityReference = new WeakReference<>(context);
-            this.blurSize = blurSize;
-            this.sizeThreshold = sizeThreshold;
-        }
+        startEditingActivity(finalBitmap.getBitmap().get(), quadF);
+    }
 
-        @Override
-        protected Pair<Mat, List<Point>> doInBackground(Mat... mats) {
-            final Mat rgba = mats[0];
-            Pair<Mat, List<Point>> result = null;
+    private void orientationCorrectionRGBA(final Mat rgba) {
+        if(rotate90fix)
+            Core.rotate(rgba, rgba, Core.ROTATE_90_CLOCKWISE);
+    }
 
-            Optional<MatOfPoint> bestContours = ImageContoursProcessor.computeBestContours(rgba, blurSize, sizeThreshold);
-            if(bestContours.isPresent()) {
-                MatOfPoint2f approx = ImageContoursProcessor.approxPolyDP(bestContours.get());
-                List<Point> approxList = approx.toList();
-                approx.release();
+    private void orientationCorrectionQuad(final List<PointF> quadF, final int bitmapNewWidth) {
+        if(rotate90fix) {
+            Matrix matrix = new Matrix();
+            matrix.postRotate(90);
+            matrix.postTranslate(bitmapNewWidth, 0);
 
-                //Quad
-                if(approxList.size() == 4) {
-                    result = new Pair<>(rgba, approxList);
-                }
-            }
-
-            return result;
-        }
-
-        @Override
-        protected void onPostExecute(@Nullable Pair<Mat, List<Point>> result) {
-            if(result != null) {
-                ScanningActivity activity = activityReference.get();
-                if (activity == null || activity.isFinishing()) return;
-
-                activity.onQuadrilateralObtained(result.first, result.second);
+            final float[] pointTmp = new float[2];
+            for(PointF p : quadF) {
+                pointTmp[0] = p.x;
+                pointTmp[1] = p.y;
+                matrix.mapPoints(pointTmp);
+                p.x = pointTmp[0];
+                p.y = pointTmp[1];
             }
         }
     }
 
-    private void onQuadrilateralObtained(Mat rgba, List<Point> quad) {
-        previewView.setNewImageWithContours(rgba, quad, true);
-        previewView.redraw();
+    private void startEditingActivity(Bitmap bitmap, ArrayList<PointF> quadF) {
+        Intent intent = new Intent(this, EditingActivity.class);
+        GlobalBitmap.bitmap = bitmap;
+        intent.putExtra(EXTRA_CONTOURS, quadF);
+        startActivity(intent);
     }
 
     @Override
