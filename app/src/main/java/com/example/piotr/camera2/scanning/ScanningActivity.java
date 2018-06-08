@@ -34,6 +34,7 @@ import java.util.List;
 public class ScanningActivity extends AppCompatActivity implements ImageReader.OnImageAvailableListener, QuadrilateralCallback{
 
     public static final String EXTRA_CONTOURS = "com.example.piotr.camera2.scanning.CONTOURS";
+    public static final String EXTRA_ROTATE90FIX = "com.example.piotr.camera2.scanning.ROTATE90FIX";
 
     private static final String TAG = "ScanningActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 200;
@@ -41,7 +42,6 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
     private CameraManager cameraManager;
     private Size cameraOutputSize;
-
     private ImageCapturer imageCapturer;
 
     private QuadrilateralComputingTask quadrilateralComputingTask;
@@ -54,6 +54,8 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
     private boolean rotate90fix;
 
+    private boolean editingActivityStarted;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,7 +66,7 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         previewView = findViewById(R.id.previewView);
         //camera rotation fix
         rotate90fix = getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
-        previewView.rotate90(rotate90fix);
+        previewView.rotate90fix(rotate90fix);
 
         cameraManager = new CameraManager(this);
         imageCapturer = new ImageCapturer(IMAGE_FORMAT);
@@ -86,6 +88,8 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
         OpenCVInitializer.init();
         startImageProcessing();
+
+        editingActivityStarted = false;
     }
 
     private void forceFullscreen() {
@@ -128,11 +132,13 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
     private void drawPreviewAndScanOpenCV(final int width, final int height, byte[] rgbaImageBytes) {
         final Mat rgba = ImageConverter.RGBA_8888toMat(width, height, rgbaImageBytes);
 
-        previewView.setNewImage(rgba, false);
+        previewView.setNewImage(rgba);
         previewView.redraw();
 
         if (!cameraManager.getAutoFocusState().isPresent()) {
             Log.i(TAG, "autofocus error");
+            stopImageProcessing();
+            startImageProcessing();
             return;
         }
 
@@ -158,7 +164,8 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         ArrayList<PointF> quadF = OpenCVHelperFuncs.convertListOfPoints(quad);
         orientationCorrectionQuad(quadF, finalBitmap.getBitmap().get().getWidth());
 
-        startEditingActivity(finalBitmap.getBitmap().get(), quadF);
+        //Orientation corrected so rotate90fix no needed later
+        startEditingActivity(finalBitmap.getBitmap().get(), quadF, false);
     }
 
     private void orientationCorrectionRGBA(final Mat rgba) {
@@ -183,11 +190,21 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         }
     }
 
-    private void startEditingActivity(Bitmap bitmap, ArrayList<PointF> quadF) {
+    private void startEditingActivity(Bitmap bitmap, ArrayList<PointF> quadF, final boolean rotate90fix) {
         Intent intent = new Intent(this, EditingActivity.class);
         GlobalBitmap.bitmap = bitmap;
         intent.putExtra(EXTRA_CONTOURS, quadF);
-        startActivity(intent);
+        intent.putExtra(EXTRA_ROTATE90FIX, rotate90fix);
+
+        synchronized (this) {
+            if(!editingActivityStarted) {
+                editingActivityStarted = true;
+                if(quadrilateralComputingTask != null && quadrilateralComputingTask.getStatus() == AsyncTask.Status.RUNNING) {
+                    quadrilateralComputingTask.cancel(true);
+                }
+                startActivity(intent);
+            }
+        }
     }
 
     @Override

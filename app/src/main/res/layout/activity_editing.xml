@@ -6,5 +6,9 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:context="com.example.piotr.camera2.editing.EditingActivity">
-
+    <com.example.piotr.camera2.editing.EditingView
+            android:id="@+id/editing_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+    />
 </android.support.constraint.ConstraintLayout>

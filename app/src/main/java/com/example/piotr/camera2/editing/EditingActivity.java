@@ -11,11 +11,11 @@ import com.example.piotr.camera2.scanning.ScanningActivity;
 import com.example.piotr.camera2.utils.GlobalBitmap;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class EditingActivity extends AppCompatActivity {
 
-    Bitmap bitmap;
-    ArrayList<PointF> quadF;
+    EditingView editingView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,16 +28,20 @@ public class EditingActivity extends AppCompatActivity {
             return;
         }
 
+        editingView = findViewById(R.id.editing_view);
 
         if(GlobalBitmap.bitmap == null)
             return;
-        bitmap = GlobalBitmap.bitmap;
+        final Bitmap bmp = GlobalBitmap.bitmap;
         GlobalBitmap.bitmap = null;
 
-        quadF = intent.getParcelableArrayListExtra(ScanningActivity.EXTRA_CONTOURS);
+        final List<PointF> quadF = intent.getParcelableArrayListExtra(ScanningActivity.EXTRA_CONTOURS);
         if(quadF == null)
             return;
 
-        Log.i("asd", bitmap.getWidth() + "");
+        final boolean rotate90fix = intent.getBooleanExtra(ScanningActivity.EXTRA_ROTATE90FIX, false);
+
+        editingView.setRotate90Fix(rotate90fix);
+        editingView.setNewImageWithContours(bmp, quadF);
     }
 }
