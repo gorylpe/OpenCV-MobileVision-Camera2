@@ -2,17 +2,20 @@ package com.example.piotr.camera2.editing;
 
 import android.content.Context;
 import android.graphics.*;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.util.AttributeSet;
+import android.util.Log;
+import android.view.MotionEvent;
 import android.view.SurfaceView;
+import android.view.ViewTreeObserver;
 import com.example.piotr.camera2.utils.BitmapDrawingUtils;
-import com.example.piotr.camera2.utils.OpenCVHelperFuncs;
-import org.opencv.core.Mat;
-import org.opencv.core.Point;
 
 import java.util.List;
 
 public class EditingView extends SurfaceView {
+
+    private static final String TAG = "EditingView";
 
     private Bitmap bmp;
     private List<PointF> contours;
@@ -35,6 +38,10 @@ public class EditingView extends SurfaceView {
     private int lastCH = 0;
 
     private Matrix viewToBitmapMatrix;
+
+    private PointF lastTouchBmpCords;
+    private boolean movingContourPoint = false;
+    private int movingContourPointIndex = 0;
 
     public EditingView(Context context) {
         super(context);
@@ -69,6 +76,20 @@ public class EditingView extends SurfaceView {
 
         contoursPath = new Path();
         contoursPathTransformed = new Path();
+
+        //onTouchEvent won't work if bmp set before View measurement, so recalculate View to Bitmap matrix after View measurement
+        getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            if(bmp != null) {
+                calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
+            }
+        });
+    }
+
+    public void redraw() {
+        if(Looper.myLooper() == Looper.getMainLooper())
+            invalidate();
+        else
+            postInvalidate();
     }
 
     public void setRotate90Fix(final boolean rotate90Fix) {
@@ -79,14 +100,18 @@ public class EditingView extends SurfaceView {
         this.bmp = bmp;
         this.contours = contours;
         updateContoursPath();
+
+        calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
     }
 
-    public void calculateViewToBitmapMatrix(final int bitmapWidth, final int bitmapHeight) {
+    public void calculateViewToBitmapMatrix(final int bmpW, final int bmpH) {
         final int width = getWidth();
         final int height = getHeight();
 
-        BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(viewToBitmapMatrix, bitmapWidth, bitmapHeight, width, height, rotate90fix);
+        BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(viewToBitmapMatrix, bmpW, bmpH, width, height, rotate90fix);
         viewToBitmapMatrix.invert(viewToBitmapMatrix);
+
+        Log.i(TAG, viewToBitmapMatrix.toString());
     }
 
     private void updateContoursPath() {
@@ -119,6 +144,7 @@ public class EditingView extends SurfaceView {
 
             if(contoursPath != null) {
                 contoursPath.transform(bitmapToCanvasMatrix, contoursPathTransformed);
+                Log.i(TAG, contoursPathTransformed.isEmpty() + "");
                 c.drawPath(contoursPathTransformed, contoursFillPaint);
                 c.drawPath(contoursPathTransformed, contoursStrokePaint);
             }
@@ -154,35 +180,52 @@ public class EditingView extends SurfaceView {
         BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(bitmapToCanvasMatrix, bmpW, bmpH, cW, cH, rotate90fix);
     }
 
-    /*@Override
+    @Override
     public boolean onTouchEvent(MotionEvent e) {
         //no bitmap drawn
         if(bitmapToCanvasMatrix == null)
             return true;
         //dont edit contours when in edit mode
-        if(editMode.get()) {
-            float[] touchCoords = new float[2];
-            touchCoords[0] = e.getX();
-            touchCoords[1] = e.getY();
+        float[] touchCoords = new float[2];
+        touchCoords[0] = e.getX();
+        touchCoords[1] = e.getY();
 
-            //translate
-            viewToBitmapMatrix.mapPoints(touchCoords);
+        //translate
+        viewToBitmapMatrix.mapPoints(touchCoords);
 
-            PointF touchPoint = new PointF(touchCoords[0], touchCoords[1]);
+        PointF touchBmpCoords = new PointF(touchCoords[0], touchCoords[1]);
 
-
-            switch (e.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    for(PointF contoursPoint : contours) {
-                        //euclidean distance between points, touch is near contour point
-                        if(Math.hypot(contoursPoint.x - touchPoint.x, contoursPoint.y - touchPoint.y) <= contourPointRadius) {
-                            Log.i("xd", "Touched point x:" + contoursPoint.x + " y:" + contoursPoint.y);
-                        }
+        switch (e.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                for (int i = 0; i < contours.size(); ++i) {
+                    PointF contoursPoint = contours.get(i);
+                    //euclidean distance between points, touch is near contour point
+                    if (Math.hypot(contoursPoint.x - touchBmpCoords.x, contoursPoint.y - touchBmpCoords.y) <= contourPointRadius) {
+                        movingContourPoint = true;
+                        movingContourPointIndex = i;
+                        lastTouchBmpCords = touchBmpCoords;
                     }
-                    break;
-            }
+                }
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if(movingContourPoint && lastTouchBmpCords != null) {
+                    float dx = touchBmpCoords.x - lastTouchBmpCords.x;
+                    float dy = touchBmpCoords.y - lastTouchBmpCords.y;
+
+                    PointF contourPoint = contours.get(movingContourPointIndex);
+                    contourPoint.x += dx;
+                    contourPoint.y += dy;
+
+                    lastTouchBmpCords = touchBmpCoords;
+
+                    redraw();
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+                movingContourPoint = false;
+                break;
         }
 
         return true;
-    }*/
+    }
 }

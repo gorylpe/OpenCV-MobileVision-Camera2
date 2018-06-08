@@ -1,19 +1,18 @@
 package com.example.piotr.camera2.scanning;
 
 import android.Manifest;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.Matrix;
-import android.graphics.PixelFormat;
-import android.graphics.PointF;
+import android.graphics.*;
 import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,8 +23,15 @@ import com.example.piotr.camera2.editing.EditingActivity;
 import com.example.piotr.camera2.utils.GlobalBitmap;
 import com.example.piotr.camera2.utils.OpenCVHelperFuncs;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
+import org.opencv.android.Utils;
 import org.opencv.core.*;
+import org.opencv.core.Point;
+import org.opencv.imgproc.Imgproc;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -80,6 +86,21 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         }
     }
 
+    //TODO REMOVE DEBUG
+    private void debug() {
+        Bitmap bmp = BitmapFactory.decodeResource(getResources(), R.drawable.debug).copy(Bitmap.Config.ARGB_8888, false);
+
+        final Mat rgba = new Mat(bmp.getWidth(), bmp.getHeight(), CvType.CV_8UC4);
+        Utils.bitmapToMat(bmp, rgba);
+
+        previewView.setNewImage(rgba);
+        previewView.redraw();
+
+        checkAndExecuteQuadrilateralComputingTask(rgba);
+
+        bmp.recycle();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -87,6 +108,7 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         forceFullscreen();
 
         OpenCVInitializer.init();
+        debug(); //TODO REMOVE DEUBG
         startImageProcessing();
 
         editingActivityStarted = false;
@@ -137,8 +159,7 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
         if (!cameraManager.getAutoFocusState().isPresent()) {
             Log.i(TAG, "autofocus error");
-            stopImageProcessing();
-            startImageProcessing();
+            checkAutofocusAndRestartIfNeeded();
             return;
         }
 
@@ -146,6 +167,14 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
             return;
 
         checkAndExecuteQuadrilateralComputingTask(rgba);
+    }
+
+    private void checkAutofocusAndRestartIfNeeded() {
+        if(!cameraManager.getAutoFocusState().isPresent()) {
+            stopImageProcessing();
+            runOnUiThread(() -> buildAlertDialogAutofocusError().show());
+            Log.e(TAG, "Autofocus error dialog");
+        }
     }
 
     private void checkAndExecuteQuadrilateralComputingTask(final Mat rgba) {
@@ -247,5 +276,18 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
     private boolean checkCameraPermissions() {
         return ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private AlertDialog buildAlertDialogAutofocusError() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        return builder.setTitle("Auto-focus error")
+                .setMessage("Camera has to be restarted")
+                .setPositiveButton("Restart", (dialog, which) -> {
+                    startImageProcessing();
+                    checkAutofocusAndRestartIfNeeded();
+                })
+                .setNegativeButton("Exit", (dialog, which) -> finish())
+                .create();
     }
 }

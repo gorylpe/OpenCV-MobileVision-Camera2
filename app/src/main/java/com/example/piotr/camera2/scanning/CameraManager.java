@@ -117,6 +117,9 @@ public class CameraManager {
 
     private void createCaptureSession() {
         try {
+            if(cameraDevice == null || targetSurface == null)
+                return;
+
             cameraDevice.createCaptureSession(Collections.singletonList(targetSurface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
@@ -134,10 +137,13 @@ public class CameraManager {
     private void startPreview() {
         try {
             CaptureRequest captureRequest = createPreviewCameraRequest();
-            if(captureRequest != null) {
-                cameraCaptureSession.prepare(targetSurface);
-                cameraCaptureSession.setRepeatingRequest(captureRequest, captureCallback, bgThread.getHandler());
+
+            if(captureRequest == null) {
+                return;
             }
+
+            cameraCaptureSession.prepare(targetSurface);
+            cameraCaptureSession.setRepeatingRequest(captureRequest, captureCallback, bgThread.getHandler());
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -145,9 +151,14 @@ public class CameraManager {
 
     private CaptureRequest createPreviewCameraRequest() {
         try {
-            CaptureRequest.Builder captureRequestBuilder;
+            if(cameraDevice == null)
+                return null; //camera already closed
 
-            captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            CaptureRequest.Builder captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+            if(targetSurface == null)
+                return null; //target surface became unavailable
+
             captureRequestBuilder.addTarget(targetSurface);
 
             return captureRequestBuilder.build();
