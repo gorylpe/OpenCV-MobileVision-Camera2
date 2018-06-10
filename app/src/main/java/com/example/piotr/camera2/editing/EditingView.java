@@ -8,7 +8,9 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
+import com.example.piotr.camera2.scanning.CachedBitmap;
 import com.example.piotr.camera2.utils.BitmapDrawingUtils;
+import org.opencv.core.Mat;
 
 import java.util.List;
 
@@ -16,7 +18,7 @@ public class EditingView extends SurfaceView {
 
     private static final String TAG = "EditingView";
 
-    private Bitmap bmp;
+    private CachedBitmap cachedBmp;
     private List<PointF> contours;
 
     private BitmapDrawingUtils.ScaleType scaleType;
@@ -57,6 +59,8 @@ public class EditingView extends SurfaceView {
     private void init() {
         setWillNotDraw(false);
 
+        cachedBmp = new CachedBitmap();
+
         scaleType = BitmapDrawingUtils.ScaleType.FILL;
 
         bitmapToCanvasMatrix = new Matrix();
@@ -82,7 +86,8 @@ public class EditingView extends SurfaceView {
 
         //onTouchEvent won't work if bmp set before View measurement, so recalculate View to Bitmap matrix after View measurement
         getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            if(bmp != null) {
+            if(cachedBmp.getBitmap().isPresent()) {
+                Bitmap bmp = cachedBmp.getBitmap().get();
                 calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
             }
         });
@@ -100,13 +105,21 @@ public class EditingView extends SurfaceView {
     }
 
     public void setNewImageWithContours(@NonNull Bitmap bmp, @NonNull List<PointF> contours) {
-        this.bmp = bmp;
+        this.cachedBmp.setFromBitmap(bmp);
         this.contours = contours;
         updateContoursPath();
 
-        Log.i(TAG, "New bitmap size: " + bmp.getWidth() + " " + bmp.getHeight());
-
         calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
+
+        redraw();
+    }
+
+    public void setNewImageWithContours(@NonNull Mat mat, @NonNull List<PointF> contours) {
+        this.cachedBmp.setFromMat(mat);
+        this.contours = contours;
+        updateContoursPath();
+
+        calculateViewToBitmapMatrix(mat.width(), mat.height());
 
         redraw();
     }
@@ -140,7 +153,9 @@ public class EditingView extends SurfaceView {
 
     @Override
     protected void onDraw(Canvas c) {
-        if(c != null && bmp != null) {
+        if(c != null && cachedBmp.getBitmap().isPresent()) {
+            final Bitmap bmp = cachedBmp.getBitmap().get();
+
             c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
 
             final int bmpW = bmp.getWidth();

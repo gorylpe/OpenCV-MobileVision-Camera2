@@ -66,56 +66,64 @@ public class EditingActivity extends AppCompatActivity {
         OpenCVInitializer.init();
     }
 
-    private void transformBitmap() {
-
-        ArrayList<Point> sourcePoints = new ArrayList<>(4);
+    private ArrayList<Point> getQuadPointsInClockwiseOrder() {
+        ArrayList<Point> points = new ArrayList<>(4);
         PointF topleft = quadF.stream().min((o1, o2) -> Float.compare(o1.x + o1.y, o2.x + o2.y)).orElseGet(PointF::new);
-        sourcePoints.add(new Point(topleft.x, topleft.y));
+        points.add(new Point(topleft.x, topleft.y));
 
         PointF topright = quadF.stream().max((o1, o2) -> Float.compare(o1.x - o1.y, o2.x - o2.y)).orElseGet(PointF::new);
-        sourcePoints.add(new Point(topright.x, topright.y));
+        points.add(new Point(topright.x, topright.y));
 
         PointF bottomright = quadF.stream().max((o1, o2) -> Float.compare(o1.x + o1.y, o2.x + o2.y)).orElseGet(PointF::new);
-        sourcePoints.add(new Point(bottomright.x, bottomright.y));
+        points.add(new Point(bottomright.x, bottomright.y));
 
         PointF bottomleft = quadF.stream().min((o1, o2) -> Float.compare(o1.x - o1.y, o2.x - o2.y)).orElseGet(PointF::new);
-        sourcePoints.add(new Point(bottomleft.x, bottomleft.y));
+        points.add(new Point(bottomleft.x, bottomleft.y));
 
-        MatOfPoint2f sourceMat = new MatOfPoint2f();
-        sourceMat.fromList(sourcePoints);
+        return points;
+    }
 
-        RotatedRect boundingBox = Imgproc.minAreaRect(sourceMat);
+    private ArrayList<Point> getRectPointsInClockwiseOrder(int width, int height) {
+        ArrayList<Point> points = new ArrayList<>(4);
+        points.add(new Point(0.0, 0.0));
+        points.add(new Point(width - 1, 0.0));
+        points.add(new Point(width - 1, height - 1));
+        points.add(new Point(0.0, height - 1));
+
+        return points;
+    }
+
+    private void transformBitmap() {
+
+        MatOfPoint2f sourcePointsMat = new MatOfPoint2f();
+        ArrayList<Point> sourcePoints = getQuadPointsInClockwiseOrder();
+        sourcePointsMat.fromList(sourcePoints);
+
+        RotatedRect boundingBox = Imgproc.minAreaRect(sourcePointsMat);
         int width = (int)boundingBox.size.width;
         int height = (int)boundingBox.size.height;
 
-        ArrayList<Point> targetPoints = new ArrayList<>(4);
-        targetPoints.add(new Point(0.0, 0.0));
-        targetPoints.add(new Point(width - 1, 0.0));
-        targetPoints.add(new Point(width - 1, height - 1));
-        targetPoints.add(new Point(0.0, height - 1));
+        MatOfPoint2f targetPointsMat = new MatOfPoint2f();
+        ArrayList<Point> targetPoints = getRectPointsInClockwiseOrder(width, height);
+        targetPointsMat.fromList(targetPoints);
 
-        MatOfPoint2f targetMat = new MatOfPoint2f();
-        targetMat.fromList(targetPoints);
+        Mat transformation = Imgproc.getPerspectiveTransform(sourcePointsMat, targetPointsMat);
 
-        Mat transformation = Imgproc.getPerspectiveTransform(sourceMat, targetMat);
 
-        Mat source = new Mat(bmp.getWidth(), bmp.getHeight(), CvType.CV_8UC4);
-        Utils.bitmapToMat(bmp, source);
+        Mat sourceMat = new Mat(bmp.getWidth(), bmp.getHeight(), CvType.CV_8UC4);
+        Utils.bitmapToMat(bmp, sourceMat);
 
-        Mat transformed = new Mat(width, height, CvType.CV_8UC4);
-        Imgproc.warpPerspective(source, transformed, transformation, new Size(width, height));
+        Mat targetMat = new Mat(width, height, CvType.CV_8UC4);
 
-        Bitmap newBmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-
-        Utils.matToBitmap(transformed, newBmp);
+        Imgproc.warpPerspective(sourceMat, targetMat, transformation, new Size(width, height));
 
         quadF = new ArrayList<>(4);
-        for(Point p : targetMat.toList()) {
+        for(Point p : targetPointsMat.toList()) {
             quadF.add(new PointF((float)p.x, (float)p.y));
         }
 
         editingView.setScaleType(BitmapDrawingUtils.ScaleType.FIT);
-        editingView.setNewImageWithContours(newBmp, quadF);
+        editingView.setNewImageWithContours(targetMat, quadF);
 
         Log.i(TAG, sourcePoints.toString());
         Log.i(TAG, targetPoints.toString());
