@@ -4,12 +4,37 @@ import android.graphics.Matrix;
 
 public class BitmapDrawingUtils {
 
+    public enum ScaleType {
+        FIT,
+        FILL
+    }
+
     public static void calculateRectToRectScaleFillMatrix(final Matrix matrix,
                                                           final int rect1W,
                                                           final int rect1H,
                                                           final int rect2W,
                                                           final int rect2H,
                                                           final boolean rotateRect1By90DegreesClockwise) {
+        calculateRectToRectMatrix(matrix, rect1W, rect1H, rect2W, rect2H, rotateRect1By90DegreesClockwise, ScaleType.FILL);
+    }
+
+
+    public static void calculateRectToRectScaleFitMatrix(final Matrix matrix,
+                                                          final int rect1W,
+                                                          final int rect1H,
+                                                          final int rect2W,
+                                                          final int rect2H,
+                                                          final boolean rotateRect1By90DegreesClockwise) {
+        calculateRectToRectMatrix(matrix, rect1W, rect1H, rect2W, rect2H, rotateRect1By90DegreesClockwise, ScaleType.FIT);
+    }
+
+    public static void calculateRectToRectMatrix(final Matrix matrix,
+                                                 final int rect1W,
+                                                 final int rect1H,
+                                                 final int rect2W,
+                                                 final int rect2H,
+                                                 final boolean rotateRect1By90DegreesClockwise,
+                                                 final ScaleType scaleType) {
         matrix.reset();
 
         final int dcenterx = (rect2W - rect1W) / 2;
@@ -21,9 +46,27 @@ public class BitmapDrawingUtils {
         float scale;
         //fix for wrong camera image
         if(rotateRect1By90DegreesClockwise){
-            scale = Math.max((float)rect2W / rect1H, (float)rect2H / rect1W);
+            switch (scaleType) {
+                case FILL:
+                    scale = Math.max((float)rect2W / rect1H, (float)rect2H / rect1W);
+                    break;
+                case FIT:
+                    scale = Math.min((float)rect2W / rect1H, (float)rect2H / rect1W);
+                    break;
+                default:
+                    scale = 1.0f;
+            }
         } else {
-            scale = Math.max((float)rect2H / rect1H, (float)rect2W / rect1W);
+            switch (scaleType) {
+                case FILL:
+                    scale = Math.max((float)rect2H / rect1H, (float)rect2W / rect1W);
+                    break;
+                case FIT:
+                    scale = Math.min((float)rect2H / rect1H, (float)rect2W / rect1W);
+                    break;
+                default:
+                    scale = 1.0f;
+            }
         }
 
         //scale to full screen

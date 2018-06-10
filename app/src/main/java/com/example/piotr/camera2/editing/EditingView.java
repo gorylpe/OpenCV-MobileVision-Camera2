@@ -8,7 +8,6 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
-import android.view.ViewTreeObserver;
 import com.example.piotr.camera2.utils.BitmapDrawingUtils;
 
 import java.util.List;
@@ -19,6 +18,8 @@ public class EditingView extends SurfaceView {
 
     private Bitmap bmp;
     private List<PointF> contours;
+
+    private BitmapDrawingUtils.ScaleType scaleType;
 
     private boolean rotate90fix;
 
@@ -55,6 +56,8 @@ public class EditingView extends SurfaceView {
 
     private void init() {
         setWillNotDraw(false);
+
+        scaleType = BitmapDrawingUtils.ScaleType.FILL;
 
         bitmapToCanvasMatrix = new Matrix();
         viewToBitmapMatrix = new Matrix();
@@ -101,14 +104,22 @@ public class EditingView extends SurfaceView {
         this.contours = contours;
         updateContoursPath();
 
+        Log.i(TAG, "New bitmap size: " + bmp.getWidth() + " " + bmp.getHeight());
+
         calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
+
+        redraw();
+    }
+
+    public void setScaleType(BitmapDrawingUtils.ScaleType scaleType) {
+        this.scaleType = scaleType;
     }
 
     public void calculateViewToBitmapMatrix(final int bmpW, final int bmpH) {
         final int width = getWidth();
         final int height = getHeight();
 
-        BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(viewToBitmapMatrix, bmpW, bmpH, width, height, rotate90fix);
+        BitmapDrawingUtils.calculateRectToRectMatrix(viewToBitmapMatrix, bmpW, bmpH, width, height, rotate90fix, scaleType);
         viewToBitmapMatrix.invert(viewToBitmapMatrix);
 
         Log.i(TAG, viewToBitmapMatrix.toString());
@@ -142,14 +153,13 @@ public class EditingView extends SurfaceView {
                 calculateBitmapToCanvasMatrix(bmpW, bmpH, cW, cH);
             }
 
+            c.drawBitmap(bmp, bitmapToCanvasMatrix, null);
+
             if(contoursPath != null) {
                 contoursPath.transform(bitmapToCanvasMatrix, contoursPathTransformed);
-                Log.i(TAG, contoursPathTransformed.isEmpty() + "");
                 c.drawPath(contoursPathTransformed, contoursFillPaint);
                 c.drawPath(contoursPathTransformed, contoursStrokePaint);
             }
-
-            c.drawBitmap(bmp, bitmapToCanvasMatrix, null);
 
             if(contours != null) {
                 for(PointF p : contours) {
@@ -177,7 +187,7 @@ public class EditingView extends SurfaceView {
     }
 
     private void calculateBitmapToCanvasMatrix(final int bmpW, final int bmpH, final int cW, final int cH) {
-        BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(bitmapToCanvasMatrix, bmpW, bmpH, cW, cH, rotate90fix);
+        BitmapDrawingUtils.calculateRectToRectMatrix(bitmapToCanvasMatrix, bmpW, bmpH, cW, cH, rotate90fix, scaleType);
     }
 
     @Override
@@ -218,10 +228,13 @@ public class EditingView extends SurfaceView {
 
                     lastTouchBmpCords = touchBmpCoords;
 
+                    updateContoursPath();
                     redraw();
                 }
                 break;
             case MotionEvent.ACTION_UP:
+                updateContoursPath();
+                redraw();
                 movingContourPoint = false;
                 break;
         }
