@@ -26,12 +26,6 @@ import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.android.Utils;
 import org.opencv.core.*;
 import org.opencv.core.Point;
-import org.opencv.imgproc.Imgproc;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
