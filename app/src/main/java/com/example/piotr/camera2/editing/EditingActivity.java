@@ -9,7 +9,7 @@ import android.util.Log;
 import android.view.View;
 import com.example.piotr.camera2.R;
 import com.example.piotr.camera2.scanning.ScanningActivity;
-import com.example.piotr.camera2.utils.BitmapDrawingUtils;
+import com.example.piotr.camera2.utils.DrawingUtils;
 import com.example.piotr.camera2.utils.GlobalVars;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.android.Utils;
@@ -118,7 +118,7 @@ public class EditingActivity extends AppCompatActivity {
             quadF.add(new PointF((float)p.x, (float)p.y));
         }
 
-        editingView.setScaleType(BitmapDrawingUtils.ScaleType.FIT);
+        editingView.setScale(DrawingUtils.Scale.FIT);
         editingView.setNewImageWithContours(targetMat, quadF);
 
         Log.i(TAG, sourcePoints.toString());

@@ -6,7 +6,7 @@ import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.util.AttributeSet;
 import android.view.SurfaceView;
-import com.example.piotr.camera2.utils.BitmapDrawingUtils;
+import com.example.piotr.camera2.utils.DrawingUtils;
 import org.opencv.core.Mat;
 
 public class ScanningPreviewView extends SurfaceView {
@@ -95,6 +95,6 @@ public class ScanningPreviewView extends SurfaceView {
     }
 
     private void calculateBitmapToCanvasMatrix(final int bmpW, final int bmpH, final int cW, final int cH) {
-        BitmapDrawingUtils.calculateRectToRectScaleFillMatrix(bitmapToCanvasMatrix, bmpW, bmpH, cW, cH, rotate90fix);
+        DrawingUtils.calculateRectToRectMatrix(bitmapToCanvasMatrix, bmpW, bmpH, cW, cH, rotate90fix, DrawingUtils.Scale.FILL);
     }
 }
