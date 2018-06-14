@@ -2,7 +2,6 @@ package com.example.piotr.camera2.editing;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.PointF;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -11,16 +10,13 @@ import android.view.View;
 import com.example.piotr.camera2.R;
 import com.example.piotr.camera2.scanning.ScanningActivity;
 import com.example.piotr.camera2.utils.BitmapDrawingUtils;
-import com.example.piotr.camera2.utils.GlobalBitmap;
+import com.example.piotr.camera2.utils.GlobalVars;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.android.Utils;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 
 public class EditingActivity extends AppCompatActivity {
 
@@ -46,9 +42,9 @@ public class EditingActivity extends AppCompatActivity {
 
         editingView = findViewById(R.id.editing_view);
 
-        if(GlobalBitmap.bitmap == null)
+        if(GlobalVars.bitmap == null)
             return;
-        bmp = GlobalBitmap.bitmap;
+        bmp = GlobalVars.bitmap;
 
         quadF = intent.getParcelableArrayListExtra(ScanningActivity.EXTRA_CONTOURS);
         if(quadF == null)

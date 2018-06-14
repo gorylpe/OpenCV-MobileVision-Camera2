@@ -1,7 +1,6 @@
 package com.example.piotr.camera2.scanning;
 
 import android.Manifest;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -20,7 +19,7 @@ import android.util.Size;
 import android.view.View;
 import com.example.piotr.camera2.R;
 import com.example.piotr.camera2.editing.EditingActivity;
-import com.example.piotr.camera2.utils.GlobalBitmap;
+import com.example.piotr.camera2.utils.GlobalVars;
 import com.example.piotr.camera2.utils.OpenCVHelperFuncs;
 import com.example.piotr.camera2.utils.OpenCVInitializer;
 import org.opencv.android.Utils;
@@ -215,7 +214,7 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
     private void startEditingActivity(Bitmap bitmap, ArrayList<PointF> quadF, final boolean rotate90fix) {
         Intent intent = new Intent(this, EditingActivity.class);
-        GlobalBitmap.bitmap = bitmap;
+        GlobalVars.bitmap = bitmap;
         intent.putExtra(EXTRA_CONTOURS, quadF);
         intent.putExtra(EXTRA_ROTATE90FIX, rotate90fix);
 
