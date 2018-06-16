@@ -104,16 +104,6 @@ public class EditingView extends SurfaceView {
         this.rotate90fix = rotate90Fix;
     }
 
-    public void setNewImageWithContours(@NonNull Bitmap bmp, @NonNull List<PointF> contours) {
-        this.cachedBmp.setFromBitmap(bmp);
-        this.contours = contours;
-        updateContoursPath();
-
-        calculateViewToBitmapMatrix(bmp.getWidth(), bmp.getHeight());
-
-        redraw();
-    }
-
     public void setNewImageWithContours(@NonNull Mat mat, @NonNull List<PointF> contours) {
         this.cachedBmp.setFromMat(mat);
         this.contours = contours;

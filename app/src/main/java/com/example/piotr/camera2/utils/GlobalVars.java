@@ -1,7 +1,7 @@
 package com.example.piotr.camera2.utils;
 
-import android.graphics.Bitmap;
+import org.opencv.core.Mat;
 
 public class GlobalVars {
-    public static Bitmap bitmap;
+    public static Mat mat;
 }

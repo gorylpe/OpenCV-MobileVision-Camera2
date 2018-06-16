@@ -47,8 +47,6 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
     private final int blurSize = 5;
     private final double sizeThreshold = 1.0/18;
 
-    private final CachedBitmap finalBitmap = new CachedBitmap();
-
     private ScanningPreviewView previewView;
 
     private boolean rotate90fix;
@@ -179,15 +177,12 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
 
     public void onObtained(Mat rgba, List<Point> quad) {
         orientationCorrectionRGBA(rgba);
-        finalBitmap.setFromMat(rgba);
-        if(!finalBitmap.getBitmap().isPresent())
-            return;
 
         ArrayList<PointF> quadF = OpenCVHelperFuncs.convertListOfPoints(quad);
-        orientationCorrectionQuad(quadF, finalBitmap.getBitmap().get().getWidth());
+        orientationCorrectionQuad(quadF, rgba.width());
 
         //Orientation corrected so rotate90fix no needed later
-        startEditingActivity(finalBitmap.getBitmap().get(), quadF, false);
+        startEditingActivity(rgba, quadF, false);
     }
 
     private void orientationCorrectionRGBA(final Mat rgba) {
@@ -212,20 +207,18 @@ public class ScanningActivity extends AppCompatActivity implements ImageReader.O
         }
     }
 
-    private void startEditingActivity(Bitmap bitmap, ArrayList<PointF> quadF, final boolean rotate90fix) {
-        Intent intent = new Intent(this, EditingActivity.class);
-        GlobalVars.bitmap = bitmap;
-        intent.putExtra(EXTRA_CONTOURS, quadF);
-        intent.putExtra(EXTRA_ROTATE90FIX, rotate90fix);
+    private synchronized void startEditingActivity(Mat rgba, ArrayList<PointF> quadF, final boolean rotate90fix) {
+        if(!editingActivityStarted) {
+            editingActivityStarted = true;
 
-        synchronized (this) {
-            if(!editingActivityStarted) {
-                editingActivityStarted = true;
-                if(quadrilateralComputingTask != null && quadrilateralComputingTask.getStatus() == AsyncTask.Status.RUNNING) {
-                    quadrilateralComputingTask.cancel(true);
-                }
-                startActivity(intent);
+            Intent intent = new Intent(this, EditingActivity.class);
+            GlobalVars.mat = rgba;
+            intent.putExtra(EXTRA_CONTOURS, quadF);
+            intent.putExtra(EXTRA_ROTATE90FIX, rotate90fix);
+            if(quadrilateralComputingTask != null && quadrilateralComputingTask.getStatus() == AsyncTask.Status.RUNNING) {
+                quadrilateralComputingTask.cancel(true);
             }
+            startActivity(intent);
         }
     }
 

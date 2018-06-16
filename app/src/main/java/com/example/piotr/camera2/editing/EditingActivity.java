@@ -26,8 +26,8 @@ public class EditingActivity extends AppCompatActivity {
 
     private EditingView editingView;
 
+    private Mat rgba;
     private ArrayList<PointF> quadF;
-    private Bitmap bmp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,10 +42,7 @@ public class EditingActivity extends AppCompatActivity {
 
         editingView = findViewById(R.id.editing_view);
 
-        if(GlobalVars.bitmap == null)
-            return;
-        bmp = GlobalVars.bitmap;
-
+        rgba = GlobalVars.mat;
         quadF = intent.getParcelableArrayListExtra(ScanningActivity.EXTRA_CONTOURS);
         if(quadF == null)
             return;
@@ -53,7 +50,7 @@ public class EditingActivity extends AppCompatActivity {
         final boolean rotate90fix = intent.getBooleanExtra(ScanningActivity.EXTRA_ROTATE90FIX, false);
 
         editingView.setRotate90Fix(rotate90fix);
-        editingView.setNewImageWithContours(bmp, quadF);
+        editingView.setNewImageWithContours(rgba, quadF);
     }
 
     @Override
@@ -106,8 +103,7 @@ public class EditingActivity extends AppCompatActivity {
         Mat transformation = Imgproc.getPerspectiveTransform(sourcePointsMat, targetPointsMat);
 
 
-        Mat sourceMat = new Mat(bmp.getWidth(), bmp.getHeight(), CvType.CV_8UC4);
-        Utils.bitmapToMat(bmp, sourceMat);
+        Mat sourceMat = rgba;
 
         Mat targetMat = new Mat(width, height, CvType.CV_8UC4);
 
@@ -120,9 +116,6 @@ public class EditingActivity extends AppCompatActivity {
 
         editingView.setScale(DrawingUtils.Scale.FIT);
         editingView.setNewImageWithContours(targetMat, quadF);
-
-        Log.i(TAG, sourcePoints.toString());
-        Log.i(TAG, targetPoints.toString());
     }
 
     public void btnDone(View view) {
